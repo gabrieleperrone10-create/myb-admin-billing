@@ -5,12 +5,18 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 async function nextInvoiceNumber() {
-  const last = await prisma.invoice.findFirst({ orderBy: { createdAt: "desc" }, select: { number: true } });
   const year = new Date().getFullYear();
-  if (!last) return `MYB-${year}-0001`;
-  const parts = last.number.split("-");
-  const seq = parseInt(parts[parts.length - 1]) + 1;
-  return `MYB-${year}-${String(seq).padStart(4, "0")}`;
+  // Find highest sequential MYB-YYYY-NNNN number
+  const all = await prisma.invoice.findMany({ select: { number: true } });
+  let max = 0;
+  for (const inv of all) {
+    const match = inv.number.match(/^MYB-\d{4}-(\d+)$/);
+    if (match) {
+      const n = parseInt(match[1]);
+      if (n > max) max = n;
+    }
+  }
+  return `MYB-${year}-${String(max + 1).padStart(4, "0")}`;
 }
 
 export async function createInvoice(formData: FormData) {
