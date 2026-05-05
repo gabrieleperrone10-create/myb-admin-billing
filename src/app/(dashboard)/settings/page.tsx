@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { getCompanySettings } from "@/app/actions/settings";
 import SettingsForm from "./SettingsForm";
 

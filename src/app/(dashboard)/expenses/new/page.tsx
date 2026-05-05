@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import ExpenseForm from "./ExpenseForm";
 
 export default function NewExpensePage() {
