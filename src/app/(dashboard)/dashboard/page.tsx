@@ -224,7 +224,7 @@ export default async function DashboardPage({
 
   const now      = new Date();
   const hour     = now.getHours();
-  const greeting = hour < 12 ? "Buongiorno" : "Buonasera";
+  const greeting = hour < 12 ? "Buongiorno" : hour < 18 ? "Buon pomeriggio" : "Buonasera";
   const timeStr  = now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
 
   // Stacked bar
@@ -249,7 +249,7 @@ export default async function DashboardPage({
       {/* Greeting */}
       <div className="space-y-0.5">
         <h1 className="font-semibold" style={{ fontSize: 24, letterSpacing: "-0.02em", color: "var(--fg)" }}>
-          {greeting}, Nicolò
+          {greeting}, Gabriele
         </h1>
         {data.overdueInvoices.length > 0 ? (
           <p style={{ fontSize: 13, color: "var(--fg-2)" }}>

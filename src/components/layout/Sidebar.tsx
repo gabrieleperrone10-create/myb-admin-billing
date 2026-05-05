@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, Users, Package, FileText, CreditCard,
-  Wallet, FileCheck, Settings, Search, BarChart3, FolderOpen, Users2, Receipt,
+  Wallet, FileCheck, Settings, Search, BarChart3, FolderOpen, Users2, Receipt, BookOpen, Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +16,9 @@ const operazioni = [
   { href: "/deposits",   label: "Depositi",           icon: Wallet },
   { href: "/invoices",   label: "Fatture",            icon: FileText },
   { href: "/payments",   label: "Pagamenti",          icon: CreditCard },
-  { href: "/expenses",   label: "Spese",              icon: Receipt },
+  { href: "/expenses",     label: "Spese",              icon: Receipt },
+  { href: "/automations", label: "Automazioni",        icon: Zap },
+  { href: "/knowledge",   label: "Knowledge Base",     icon: BookOpen },
 ];
 
 const prossimamente = [
@@ -46,7 +48,7 @@ export default function Sidebar() {
           <span className="text-[11px] font-semibold leading-none select-none" style={{ color: "#fff" }}>G</span>
         </div>
         <span className="text-[14px] font-semibold" style={{ color: "var(--fg)", letterSpacing: "-0.01em" }}>
-          Gestionale
+          Market Your Business
         </span>
       </div>
 
@@ -153,10 +155,10 @@ export default function Sidebar() {
             className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
             style={{ backgroundColor: "oklch(0.85 0.04 80)" }}
           >
-            <span className="text-[10px] font-semibold select-none" style={{ color: "var(--fg)" }}>N</span>
+            <span className="text-[10px] font-semibold select-none" style={{ color: "var(--fg)" }}>G</span>
           </div>
           <div className="min-w-0">
-            <p className="text-[12px] font-medium leading-none truncate" style={{ color: "var(--fg)" }}>Nicolò</p>
+            <p className="text-[12px] font-medium leading-none truncate" style={{ color: "var(--fg)" }}>Gabriele</p>
             <p className="text-[10px] leading-none mt-0.5" style={{ color: "var(--fg-3)" }}>Admin · MYB</p>
           </div>
         </div>

@@ -198,3 +198,13 @@ model Expense {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 }
+
+model Automation {
+  id          String   @id @default(cuid())
+  type        String   @unique
+  active      Boolean  @default(false)
+  config      Json     @default("{}")
+  lastRunAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
