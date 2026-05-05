@@ -1,26 +1,93 @@
 @import "tailwindcss";
 
+/* Force light mode — never follow prefers-color-scheme */
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+/* ── Design tokens ──────────────────────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  --bg:           oklch(0.99 0.003 80);
+  --surface:      #ffffff;
+  --subtle:       oklch(0.97 0.005 80);
+  --border:       oklch(0.93 0.005 80);
+  --fg:           oklch(0.18 0.005 80);
+  --fg-2:         oklch(0.45 0.005 80);
+  --fg-3:         oklch(0.62 0.005 80);
+
+  --ok:           oklch(0.62 0.14 152);
+  --ok-soft:      oklch(0.95 0.04 152);
+  --danger:       oklch(0.58 0.18 25);
+  --danger-soft:  oklch(0.95 0.04 25);
+  --warn:         oklch(0.72 0.13 75);
+  --warn-soft:    oklch(0.96 0.05 75);
+  --info:         oklch(0.55 0.13 252);
+  --info-soft:    oklch(0.96 0.03 250);
+
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
 }
 
+/* Dark mode stubs — NOT active until data-theme="dark" is set */
+[data-theme="dark"] {
+  --bg:      oklch(0.12 0.005 80);
+  --surface: oklch(0.16 0.005 80);
+  --subtle:  oklch(0.20 0.005 80);
+  --border:  oklch(0.26 0.005 80);
+  --fg:      oklch(0.95 0.003 80);
+  --fg-2:    oklch(0.75 0.005 80);
+  --fg-3:    oklch(0.55 0.005 80);
+}
+
+/* ── Tailwind v4 theme ───────────────────────────────────────────────────────── */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter-tight), system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --color-bg:           var(--bg);
+  --color-surface:      var(--surface);
+  --color-subtle:       var(--subtle);
+  --color-border:       var(--border);
+  --color-fg:           var(--fg);
+  --color-fg-2:         var(--fg-2);
+  --color-fg-3:         var(--fg-3);
+  --color-ok:           var(--ok);
+  --color-ok-soft:      var(--ok-soft);
+  --color-danger:       var(--danger);
+  --color-danger-soft:  var(--danger-soft);
+  --color-warn:         var(--warn);
+  --color-warn-soft:    var(--warn-soft);
+  --color-info:         var(--info);
+  --color-info-soft:    var(--info-soft);
+
+  --tracking-eyebrow:    0.12em;
+  --tracking-table-head: 0.08em;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* ── Base ───────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  background-color: oklch(0.99 0.003 80);
+  color: oklch(0.18 0.005 80);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  font-family: var(--font-sans);
+}
+
+::-webkit-scrollbar        { width: 6px; height: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--fg-3); }
+
+:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
 }

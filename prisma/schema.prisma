@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProductType {
+  SUBSCRIPTION
+  COACHING
+  CONSULTING
+  DIGITAL
+}
+
+enum PaymentMethod {
+  STRIPE
+  PAYPAL
+  BANK_TRANSFER
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum ContractType {
+  RECURRING
+  ONE_SHOT
+}
+
+enum DepositStatus {
+  PENDING
+  PAID
+  REFUNDED
+}
+
+enum ExpenseCategory {
+  TOOLS
+  MARKETING
+  PAYROLL
+  FREELANCER
+  INFRASTRUCTURE
+  LEGAL
+  TRAVEL
+  OFFICE
+  TAXES
+  OTHER
+}
+
+model CompanySettings {
+  id         String   @id @default("singleton")
+  name       String   @default("")
+  email      String   @default("")
+  phone      String?
+  website    String?
+  address    String?
+  city       String?
+  zip        String?
+  province   String?
+  country    String?
+  vatNumber  String?
+  fiscalCode String?
+  bankName   String?
+  iban       String?
+  bic        String?
+  invoiceFooter String?
+  updatedAt  DateTime @updatedAt
+}
+
+model Client {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  phone        String?
+  whatsapp     String?
+  company      String?
+  fiscalCode   String?
+  vatNumber    String?
+  address      String?
+  city         String?
+  zip          String?
+  province     String?
+  country      String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  contracts Contract[]
+  invoices  Invoice[]
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  type        ProductType
+  basePrice   Float
+  currency    String      @default("EUR")
+  active      Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  contracts Contract[]
+}
+
+model Contract {
+  id         String       @id @default(cuid())
+  clientId   String
+  productId  String
+  type       ContractType
+  amount     Float
+  currency   String       @default("EUR")
+  startDate  DateTime
+  endDate    DateTime?
+  billingDay Int?
+  active     Boolean      @default(true)
+  notes      String?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  client   Client    @relation(fields: [clientId], references: [id])
+  product  Product   @relation(fields: [productId], references: [id])
+  invoices Invoice[]
+  deposit  Deposit?
+}
+
+model Deposit {
+  id         String        @id @default(cuid())
+  contractId String        @unique
+  amount     Float         @default(500)
+  currency   String        @default("EUR")
+  status     DepositStatus @default(PENDING)
+  paidAt     DateTime?
+  notes      String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id])
+  payment  Payment?
+}
+
+model Invoice {
+  id         String        @id @default(cuid())
+  number     String        @unique
+  clientId   String
+  contractId String?
+  amount     Float
+  currency   String        @default("EUR")
+  status     InvoiceStatus @default(DRAFT)
+  issueDate  DateTime      @default(now())
+  dueDate    DateTime
+  paidAt     DateTime?
+  notes      String?
+  lineItems  Json
+  pdfUrl     String?
+  sentAt     DateTime?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  client   Client    @relation(fields: [clientId], references: [id])
+  contract Contract? @relation(fields: [contractId], references: [id])
+  payment  Payment?
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  invoiceId       String?       @unique
+  depositId       String?       @unique
+  amount          Float
+  currency        String        @default("EUR")
+  method          PaymentMethod
+  stripePaymentId String?
+  paypalOrderId   String?
+  reference       String?
+  paidAt          DateTime      @default(now())
+  notes           String?
+  createdAt       DateTime      @default(now())
+
+  invoice Invoice? @relation(fields: [invoiceId], references: [id])
+  deposit Deposit? @relation(fields: [depositId], references: [id])
+}
+
+model Expense {
+  id          String          @id @default(cuid())
+  date        DateTime
+  category    ExpenseCategory
+  description String
+  amount      Float
+  currency    String          @default("EUR")
+  vendor      String?
+  receipt     String?
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
