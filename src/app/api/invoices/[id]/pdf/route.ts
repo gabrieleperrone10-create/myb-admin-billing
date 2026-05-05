@@ -14,9 +14,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   if (!invoice) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const lineItems = invoice.lineItems as {
-    description: string; quantity: number; unitPrice: number; total: number;
-  }[];
+  const rawItems = (invoice.lineItems ?? []) as Record<string, unknown>[];
+  const lineItems = rawItems.map(li => ({
+    description: String(li.description ?? ""),
+    quantity:    Number(li.quantity ?? li.qty ?? 1),
+    unitPrice:   Number(li.unitPrice ?? li.price ?? 0),
+    total:       Number(li.total ?? li.price ?? 0),
+  }));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const element = React.createElement(InvoicePDF as any, {

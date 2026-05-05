@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -32,7 +33,13 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
   if (!invoice) notFound();
 
-  const lineItems = invoice.lineItems as { description: string; quantity: number; unitPrice: number; total: number }[];
+  const rawItems = (invoice.lineItems ?? []) as Record<string, unknown>[];
+  const lineItems = rawItems.map(li => ({
+    description: String(li.description ?? ""),
+    quantity:    Number(li.quantity ?? li.qty ?? 1),
+    unitPrice:   Number(li.unitPrice ?? li.price ?? 0),
+    total:       Number(li.total ?? li.price ?? 0),
+  }));
 
   const markSent = updateInvoiceStatus.bind(null, id, "SENT");
   const markCancelled = updateInvoiceStatus.bind(null, id, "CANCELLED");
