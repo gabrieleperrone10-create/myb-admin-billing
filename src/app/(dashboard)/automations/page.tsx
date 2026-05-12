@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { AutomationToggle } from "./AutomationToggle";
 import { Bell, CalendarCheck, FileBarChart2, RefreshCw, ShieldAlert, Zap } from "lucide-react";
+import { AutomationConfigInput } from "./AutomationConfigInput";
 
 type AutomationDef = {
   type: string;
@@ -11,6 +12,7 @@ type AutomationDef = {
   schedule: string;
   category: "fatture" | "report" | "contratti";
   implemented: boolean;
+  configFields?: { field: string; label: string; placeholder?: string }[];
 };
 
 const AUTOMATIONS: AutomationDef[] = [
@@ -18,19 +20,22 @@ const AUTOMATIONS: AutomationDef[] = [
     type: "OVERDUE_REMINDER",
     icon: <Bell className="w-4 h-4" />,
     title: "Sollecito fatture insolute",
-    desc: "Invia automaticamente un'email di sollecito al cliente quando una fattura supera la scadenza senza essere pagata.",
-    schedule: "Ogni giorno alle 09:00",
+    desc: "Invia automaticamente un'email di sollecito al cliente quando una fattura supera la scadenza. Include link WhatsApp pre-compilato nel report admin.",
+    schedule: "Ogni giorno alle 09:00 UTC",
     category: "fatture",
-    implemented: false,
+    implemented: true,
   },
   {
     type: "OVERDUE_ALERT",
     icon: <ShieldAlert className="w-4 h-4" />,
-    title: "Alert giornaliero insoluti",
-    desc: "Invia un riepilogo giornaliero delle fatture insolute alla tua email. Utile per monitorare i crediti aperti.",
-    schedule: "Ogni giorno alle 08:00",
+    title: "Report settimanale insoluti",
+    desc: "Ogni lunedì invia un riepilogo di tutte le fatture scadute con importi, giorni di ritardo e link WhatsApp one-click per ogni cliente.",
+    schedule: "Ogni lunedì alle 08:00 UTC",
     category: "fatture",
-    implemented: false,
+    implemented: true,
+    configFields: [
+      { field: "email", label: "Invia a:", placeholder: "tua@email.com" },
+    ],
   },
   {
     type: "RECURRING_INVOICES",
@@ -173,6 +178,16 @@ export default async function AutomationsPage() {
                               Il toggle non ha ancora effetto — richiede implementazione del cron endpoint.
                             </p>
                           )}
+                          {def.implemented && def.configFields?.map(cf => (
+                            <AutomationConfigInput
+                              key={cf.field}
+                              type={def.type}
+                              label={cf.label}
+                              field={cf.field}
+                              currentValue={(record?.config as Record<string, unknown>)?.[cf.field] as string ?? ""}
+                              placeholder={cf.placeholder}
+                            />
+                          ))}
                           <div className="flex items-center gap-4 mt-2 flex-wrap">
                             <span className="font-mono text-[11px]" style={{ color: "var(--fg-3)" }}>
                               ⏱ {def.schedule}

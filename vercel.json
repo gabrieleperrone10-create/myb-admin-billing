@@ -1,8 +1,7 @@
 {
   "crons": [
-    {
-      "path": "/api/cron/generate-invoices",
-      "schedule": "0 7 * * *"
-    }
+    { "path": "/api/cron/generate-invoices",  "schedule": "0 7 * * *"   },
+    { "path": "/api/cron/overdue-reminder",   "schedule": "0 9 * * *"   },
+    { "path": "/api/cron/overdue-alert",      "schedule": "0 8 * * MON" }
   ]
 }

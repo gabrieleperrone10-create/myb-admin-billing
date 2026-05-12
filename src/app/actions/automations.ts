@@ -10,3 +10,12 @@ export async function toggleAutomation(type: string, active: boolean) {
   });
   revalidatePath("/automations");
 }
+
+export async function updateAutomationConfig(type: string, config: Record<string, string>) {
+  await prisma.automation.upsert({
+    where:  { type },
+    update: { config: config as never },
+    create: { type, active: false, config: config as never },
+  });
+  revalidatePath("/automations");
+}
