@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input, Select, Textarea } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { createContract } from "@/app/actions/contracts";
+import { formatCurrency } from "@/lib/utils";
 
 interface Client { id: string; name: string; company: string | null }
 interface Product { id: string; name: string; type: string; basePrice: number }
@@ -15,8 +16,14 @@ interface Props {
 }
 
 const TYPE_OPTIONS = [
-  { value: "RECURRING", label: "Ricorrente (mensile)" },
-  { value: "ONE_SHOT", label: "Una tantum" },
+  { value: "RECURRING", label: "Ricorrente" },
+  { value: "ONE_SHOT",  label: "Una tantum / Rate" },
+];
+
+const PERIOD_OPTIONS = [
+  { value: "MONTHLY",   label: "Mensile" },
+  { value: "QUARTERLY", label: "Trimestrale" },
+  { value: "ANNUALLY",  label: "Annuale" },
 ];
 
 const DAYS = Array.from({ length: 28 }, (_, i) => ({ value: String(i + 1), label: `Giorno ${i + 1}` }));
@@ -26,19 +33,17 @@ export default function ContractForm({ clients, products }: Props) {
   const [type, setType] = useState<"RECURRING" | "ONE_SHOT">("RECURRING");
   const [hasDeposit, setHasDeposit] = useState(true);
   const [selectedProductId, setSelectedProductId] = useState("");
+  const [amount, setAmount] = useState("");
+  const [installments, setInstallments] = useState("3");
   const router = useRouter();
 
   const selectedProduct = products.find((p) => p.id === selectedProductId);
+  const installmentAmount = type === "ONE_SHOT" && amount && parseInt(installments) > 1
+    ? parseFloat(amount) / parseInt(installments)
+    : null;
 
-  const clientOptions = clients.map((c) => ({
-    value: c.id,
-    label: c.company ? `${c.name} — ${c.company}` : c.name,
-  }));
-
-  const productOptions = products.map((p) => ({
-    value: p.id,
-    label: `${p.name} (€${p.basePrice})`,
-  }));
+  const clientOptions  = clients.map((c)  => ({ value: c.id,  label: c.company ? `${c.name} — ${c.company}` : c.name }));
+  const productOptions = products.map((p) => ({ value: p.id,  label: `${p.name} (€${p.basePrice})` }));
 
   const action = (formData: FormData) => {
     formData.set("hasDeposit", String(hasDeposit));
@@ -57,7 +62,11 @@ export default function ContractForm({ clients, products }: Props) {
           options={productOptions}
           placeholder="Seleziona prodotto..."
           value={selectedProductId}
-          onChange={(e) => setSelectedProductId(e.target.value)}
+          onChange={(e) => {
+            setSelectedProductId(e.target.value);
+            const p = products.find(p => p.id === e.target.value);
+            if (p) setAmount(String(p.basePrice));
+          }}
         />
         <Select
           label="Tipo contratto"
@@ -68,27 +77,47 @@ export default function ContractForm({ clients, products }: Props) {
           onChange={(e) => setType(e.target.value as "RECURRING" | "ONE_SHOT")}
         />
         <Input
-          label="Importo (EUR)"
+          label={type === "RECURRING" ? "Importo per periodo (EUR)" : "Importo totale (EUR)"}
           name="amount"
           type="number"
           step="0.01"
           min="0"
           required
           placeholder="0.00"
-          defaultValue={selectedProduct?.basePrice?.toString() ?? ""}
-          hint="Puoi modificare rispetto al prezzo base del prodotto"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          hint={selectedProduct ? `Prezzo base: €${selectedProduct.basePrice}` : undefined}
         />
       </section>
 
       <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
-        <h2 className="font-semibold text-gray-900">Date</h2>
+        <h2 className="font-semibold text-gray-900">Piano di fatturazione</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <Input label="Data inizio" name="startDate" type="date" required defaultValue={new Date().toISOString().split("T")[0]} />
           <Input label="Data fine (opzionale)" name="endDate" type="date" />
-          {type === "RECURRING" && (
-            <Select label="Giorno di fatturazione mensile" name="billingDay" options={DAYS} defaultValue="1" />
-          )}
+          <Select label="Periodo di fatturazione" name="billingPeriod" options={PERIOD_OPTIONS} defaultValue="MONTHLY" />
+          <Select label="Giorno di fatturazione" name="billingDay" options={DAYS} defaultValue="1" />
         </div>
+
+        {type === "ONE_SHOT" && (
+          <div className="space-y-3">
+            <Input
+              label="Numero di rate"
+              name="installments"
+              type="number"
+              min="1"
+              max="60"
+              value={installments}
+              onChange={(e) => setInstallments(e.target.value)}
+              hint="Inserisci 1 per pagamento unico"
+            />
+            {installmentAmount && installmentAmount > 0 && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
+                {parseInt(installments)} rate da <strong>{formatCurrency(installmentAmount)}</strong> cadauna
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
@@ -107,7 +136,7 @@ export default function ContractForm({ clients, products }: Props) {
             step="0.01"
             min="0"
             defaultValue="500"
-            hint="Default €500 — modificabile"
+            hint="Pagato prima dell'avvio del piano rate"
           />
         )}
       </section>
