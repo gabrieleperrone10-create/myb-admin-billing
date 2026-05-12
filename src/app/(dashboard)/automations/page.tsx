@@ -10,6 +10,7 @@ type AutomationDef = {
   desc: string;
   schedule: string;
   category: "fatture" | "report" | "contratti";
+  implemented: boolean;
 };
 
 const AUTOMATIONS: AutomationDef[] = [
@@ -20,6 +21,7 @@ const AUTOMATIONS: AutomationDef[] = [
     desc: "Invia automaticamente un'email di sollecito al cliente quando una fattura supera la scadenza senza essere pagata.",
     schedule: "Ogni giorno alle 09:00",
     category: "fatture",
+    implemented: false,
   },
   {
     type: "OVERDUE_ALERT",
@@ -28,14 +30,16 @@ const AUTOMATIONS: AutomationDef[] = [
     desc: "Invia un riepilogo giornaliero delle fatture insolute alla tua email. Utile per monitorare i crediti aperti.",
     schedule: "Ogni giorno alle 08:00",
     category: "fatture",
+    implemented: false,
   },
   {
     type: "RECURRING_INVOICES",
     icon: <RefreshCw className="w-4 h-4" />,
     title: "Creazione fatture ricorrenti",
     desc: "Genera automaticamente le fatture mensili per tutti i contratti ricorrenti attivi il giorno di fatturazione configurato.",
-    schedule: "Ogni giorno (esegue per i contratti con billing day = oggi)",
+    schedule: "Ogni giorno alle 07:00 UTC",
     category: "contratti",
+    implemented: true,
   },
   {
     type: "MONTHLY_PL_REPORT",
@@ -44,6 +48,7 @@ const AUTOMATIONS: AutomationDef[] = [
     desc: "Invia a fine mese un report completo con entrate, spese, utile netto e confronto con il mese precedente.",
     schedule: "Ultimo giorno del mese alle 18:00",
     category: "report",
+    implemented: false,
   },
   {
     type: "CASHFLOW_FORECAST",
@@ -52,6 +57,7 @@ const AUTOMATIONS: AutomationDef[] = [
     desc: "Ogni lunedì invia una previsione del cashflow per i prossimi 30 giorni basata sui contratti attivi e le fatture aperte.",
     schedule: "Ogni lunedì alle 09:00",
     category: "report",
+    implemented: false,
   },
 ];
 
@@ -137,16 +143,36 @@ export default async function AutomationsPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-[14px] font-semibold" style={{ color: "var(--fg)" }}>{def.title}</p>
-                            {active && (
+                            {def.implemented ? (
                               <span
                                 className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wider"
                                 style={{ backgroundColor: "#3b9e6a18", color: "#3b9e6a" }}
+                              >
+                                ✓ cron attivo
+                              </span>
+                            ) : (
+                              <span
+                                className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wider"
+                                style={{ backgroundColor: "#f9741618", color: "#c2590a" }}
+                              >
+                                in sviluppo
+                              </span>
+                            )}
+                            {active && def.implemented && (
+                              <span
+                                className="text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-full uppercase tracking-wider"
+                                style={{ backgroundColor: "#4f7deb18", color: "#4f7deb" }}
                               >
                                 attiva
                               </span>
                             )}
                           </div>
                           <p className="text-[12px] mt-1" style={{ color: "var(--fg-2)" }}>{def.desc}</p>
+                          {!def.implemented && (
+                            <p className="text-[11px] mt-1" style={{ color: "#c2590a" }}>
+                              Il toggle non ha ancora effetto — richiede implementazione del cron endpoint.
+                            </p>
+                          )}
                           <div className="flex items-center gap-4 mt-2 flex-wrap">
                             <span className="font-mono text-[11px]" style={{ color: "var(--fg-3)" }}>
                               ⏱ {def.schedule}
