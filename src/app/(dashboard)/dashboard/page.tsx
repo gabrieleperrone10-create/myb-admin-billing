@@ -5,6 +5,9 @@ import { formatCurrency } from "@/lib/utils";
 import { KpiCard } from "@/components/ui/KpiCard";
 import PeriodFilter from "./PeriodFilter";
 import TrendChart from "./TrendChart";
+import { BankBalanceCard } from "./BankBalanceCard";
+import { objectiveProgress, krProgress } from "@/lib/objectives";
+import type { KRType } from "@prisma/client";
 
 // ── Colors ───────────────────────────────────────────────────────────────────
 const C = {
@@ -101,10 +104,13 @@ async function getData(period: string, from?: string, to?: string) {
     daily30Raw,
     methodRaw, statusRaw,
     activeContracts,
+    volumeVenditeRaw,
+    companySettings,
     expByCategoryRaw,
+    activeObjectives,
   ] = await Promise.all([
-    prisma.payment.aggregate({ where: { paidAt: { gte: start, lte: end } }, _sum: { amount: true } }),
-    prisma.payment.aggregate({ where: { paidAt: { gte: prevStart, lte: prevEnd } }, _sum: { amount: true } }),
+    prisma.payment.aggregate({ where: { paidAt: { gte: start, lte: end }, method: { not: "STRIPE" } }, _sum: { amount: true } }),
+    prisma.payment.aggregate({ where: { paidAt: { gte: prevStart, lte: prevEnd }, method: { not: "STRIPE" } }, _sum: { amount: true } }),
 
     prisma.expense.aggregate({ where: { date: { gte: start, lte: end } }, _sum: { amount: true } }),
     prisma.expense.aggregate({ where: { date: { gte: prevStart, lte: prevEnd } }, _sum: { amount: true } }),
@@ -115,7 +121,7 @@ async function getData(period: string, from?: string, to?: string) {
 
     prisma.$queryRaw<{ period: string; total: number }[]>`
       SELECT TO_CHAR("paidAt",'YYYY-MM') as period, SUM(amount) as total
-      FROM "Payment" WHERE "paidAt">=${chart12Start}
+      FROM "Payment" WHERE "paidAt">=${chart12Start} AND method != 'STRIPE'
       GROUP BY period ORDER BY period`,
 
     prisma.$queryRaw<{ period: string; total: number }[]>`
@@ -125,7 +131,7 @@ async function getData(period: string, from?: string, to?: string) {
 
     prisma.$queryRaw<{ period: string; total: number }[]>`
       SELECT TO_CHAR("paidAt",'YYYY-MM-DD') as period, SUM(amount) as total
-      FROM "Payment" WHERE "paidAt">=${chart30Start}
+      FROM "Payment" WHERE "paidAt">=${chart30Start} AND method != 'STRIPE'
       GROUP BY period ORDER BY period`,
 
     prisma.$queryRaw<{ method: string; total: number }[]>`
@@ -138,11 +144,30 @@ async function getData(period: string, from?: string, to?: string) {
 
     prisma.contract.findMany({ where: { active: true, type: "RECURRING" }, select: { amount: true } }),
 
+    // Volume vendite: nuovi contratti firmati nel periodo
+    prisma.contract.aggregate({ where: { startDate: { gte: start, lte: end } }, _sum: { amount: true } }),
+
+    // Saldo CC
+    prisma.companySettings.findUnique({ where: { id: "singleton" }, select: { bankBalance: true, bankBalanceAt: true } }),
+
     prisma.expense.groupBy({
       by: ["category"],
       where: { date: { gte: start, lte: end } },
       _sum: { amount: true },
     }),
+
+    // Obiettivi attivi: trimestre corrente + annuale + mese corrente
+    (() => {
+      const m = new Date().getMonth();
+      const q = `Q${Math.ceil((m + 1) / 3)}` as "Q1"|"Q2"|"Q3"|"Q4";
+      const mKey = `M${m + 1}` as never;
+      return prisma.objective.findMany({
+        where: { period: { in: [q, "ANNUAL", mKey] } },
+        include: { keyResults: { orderBy: { createdAt: "asc" } } },
+        orderBy: { createdAt: "desc" },
+        take: 6,
+      });
+    })(),
   ]);
 
   const revCur  = periodRev._sum.amount ?? 0;
@@ -163,6 +188,18 @@ async function getData(period: string, from?: string, to?: string) {
 
   const monthlyForecast = activeContracts.reduce((s: number, c) => s + c.amount, 0);
   const overdueTotal    = overdueInvoices.reduce((s: number, inv) => s + inv.amount, 0);
+  const volumeVendite   = volumeVenditeRaw._sum.amount ?? 0;
+
+  const bankBalance   = companySettings?.bankBalance ?? null;
+  const bankBalanceAt = companySettings?.bankBalanceAt ?? null;
+  let estimatedBalance: number | null = null;
+  if (bankBalance !== null && bankBalanceAt !== null) {
+    const [incomeSince, expSince] = await Promise.all([
+      prisma.payment.aggregate({ where: { paidAt: { gte: bankBalanceAt }, method: { not: "STRIPE" } }, _sum: { amount: true } }),
+      prisma.expense.aggregate({ where: { date: { gte: bankBalanceAt } }, _sum: { amount: true } }),
+    ]);
+    estimatedBalance = bankBalance + (incomeSince._sum.amount ?? 0) - (expSince._sum.amount ?? 0);
+  }
 
   const statusMap: Record<string, { count: number; amount: number }> = {};
   for (const r of statusRaw) {
@@ -198,6 +235,11 @@ async function getData(period: string, from?: string, to?: string) {
     paymentMethodRevenue: methodRaw.map(r => ({ method: r.method, amount: Number(r.total) })),
     invoiceStatus:        statusMap,
     monthlyForecast,
+    volumeVendite,
+    bankBalance,
+    bankBalanceAt,
+    estimatedBalance,
+    activeObjectives,
   };
 }
 
@@ -244,32 +286,56 @@ export default async function DashboardPage({
   const topExpCats  = [...data.expByCategory].sort((a, b) => b.amount - a.amount).slice(0, 5);
 
   return (
-    <div className="space-y-[14px]" style={{ maxWidth: 1200 }}>
+    <div className="space-y-4 md:space-y-[14px]" style={{ maxWidth: 1200 }}>
 
       {/* Greeting */}
-      <div className="space-y-0.5">
-        <h1 className="font-semibold" style={{ fontSize: 24, letterSpacing: "-0.02em", color: "var(--fg)" }}>
-          {greeting}, Gabriele
+      <div className="space-y-1">
+        <h1 className="font-bold" style={{ fontSize: "clamp(20px, 5vw, 26px)", letterSpacing: "-0.025em", color: "var(--fg)" }}>
+          {greeting}, Gabriele 👋
         </h1>
         {data.overdueInvoices.length > 0 ? (
           <p style={{ fontSize: 13, color: "var(--fg-2)" }}>
-            Hai{" "}
-            <span style={{ color: C.danger, fontWeight: 500 }}>
+            <span style={{ color: C.danger, fontWeight: 600 }}>
               {data.overdueInvoices.length} fatture insolute
             </span>{" "}
-            — totale{" "}
-            <span style={{ fontFamily: "var(--font-geist-mono)", color: C.danger }}>
+            · totale{" "}
+            <span style={{ fontFamily: "var(--font-geist-mono)", color: C.danger, fontWeight: 600 }}>
               {fmtCompact(data.overdueTotal)}
             </span>
-            . Ultimo aggiornamento alle {timeStr}.
           </p>
         ) : (
-          <p style={{ fontSize: 13, color: "var(--fg-3)" }}>Tutto in ordine. Ultimo aggiornamento alle {timeStr}.</p>
+          <p style={{ fontSize: 13, color: "var(--fg-3)" }}>Tutto in ordine · {timeStr}</p>
         )}
       </div>
 
+      {/* Obiettivi attivi */}
+      <OkrWidget objectives={data.activeObjectives} />
+
+      {/* Saldo CC + Volume vendite */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <BankBalanceCard
+          bankBalance={data.bankBalance}
+          bankBalanceAt={data.bankBalanceAt}
+          estimatedBalance={data.estimatedBalance}
+        />
+        <div className="rounded-[var(--r-lg)] p-4 md:p-[18px] flex flex-col gap-2"
+          style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
+          <p className="font-mono text-[10px] uppercase tracking-wider" style={{ color: "var(--fg-3)", letterSpacing: "0.12em" }}>
+            VOLUME VENDITE · PERIODO
+          </p>
+          <p className="font-mono font-semibold tabular-nums" style={{ fontSize: 22, color: "var(--fg)", letterSpacing: "-0.02em" }}>
+            {formatCurrency(data.volumeVendite)}
+          </p>
+          <p className="text-[11px]" style={{ color: "var(--fg-3)" }}>
+            {data.volumeVendite === 0
+              ? "Nessun contratto firmato nel periodo"
+              : "Valore contratti firmati nel periodo"}
+          </p>
+        </div>
+      </div>
+
       {/* Period filter */}
-      <Suspense fallback={<div style={{ height: 32 }} />}>
+      <Suspense fallback={<div style={{ height: 36 }} />}>
         <PeriodFilter />
       </Suspense>
 
@@ -326,9 +392,9 @@ export default async function DashboardPage({
       />
 
       {/* Bottom row 1: Fatture scadute + Spese per categoria */}
-      <div className="grid grid-cols-12 gap-3">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
         {/* Fatture scadute */}
-        <div className="col-span-12 xl:col-span-8 rounded-[8px] p-[18px]" style={{ backgroundColor: "#ffffff", border: "1px solid var(--border)" }}>
+        <div className="xl:col-span-8 rounded-[var(--r-lg)] p-4 md:p-[18px]" style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: C.danger }} />
@@ -374,7 +440,7 @@ export default async function DashboardPage({
         </div>
 
         {/* Spese per categoria */}
-        <div className="col-span-12 xl:col-span-4 rounded-[8px] p-[18px]" style={{ backgroundColor: "#ffffff", border: "1px solid var(--border)" }}>
+        <div className="xl:col-span-4 rounded-[var(--r-lg)] p-4 md:p-[18px]" style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: C.danger }} />
@@ -421,9 +487,9 @@ export default async function DashboardPage({
       </div>
 
       {/* Bottom row 2: Stato fatture + Mix metodi + Previsione */}
-      <div className="grid grid-cols-12 gap-3">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
         {/* Stato fatture */}
-        <div className="col-span-12 xl:col-span-5 rounded-[8px] p-[18px]" style={{ backgroundColor: "#ffffff", border: "1px solid var(--border)" }}>
+        <div className="xl:col-span-5 rounded-[var(--r-lg)] p-4 md:p-[18px]" style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
           <p className="text-[13px] font-medium mb-4" style={{ color: "var(--fg)" }}>Stato Fatture</p>
           {stackedBars.length === 0 ? (
             <p className="text-[13px] py-4 text-center" style={{ color: "var(--fg-3)" }}>Nessuna fattura nel periodo</p>
@@ -450,7 +516,7 @@ export default async function DashboardPage({
         </div>
 
         {/* Mix metodi */}
-        <div className="col-span-12 xl:col-span-3 rounded-[8px] p-[18px]" style={{ backgroundColor: "#ffffff", border: "1px solid var(--border)" }}>
+        <div className="xl:col-span-3 rounded-[var(--r-lg)] p-4 md:p-[18px]" style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
           <p className="text-[13px] font-medium mb-4" style={{ color: "var(--fg)" }}>Mix Pagamenti</p>
           {data.paymentMethodRevenue.length === 0 ? (
             <p className="text-[13px] py-4 text-center" style={{ color: "var(--fg-3)" }}>Nessun dato</p>
@@ -472,7 +538,7 @@ export default async function DashboardPage({
         </div>
 
         {/* Previsione di cassa */}
-        <div className="col-span-12 xl:col-span-4 rounded-[8px] p-[18px]" style={{ backgroundColor: "#ffffff", border: "1px solid var(--border)" }}>
+        <div className="xl:col-span-4 rounded-[var(--r-lg)] p-4 md:p-[18px]" style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
           <div className="flex items-center gap-2 mb-4">
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: C.ok }} />
             <p className="text-[13px] font-medium" style={{ color: "var(--fg)" }}>Previsione cashflow</p>
@@ -513,6 +579,79 @@ function marginFmt(pct: number): string {
   return `${pct >= 0 ? "" : ""}${pct.toFixed(1)}%`;
 }
 
+// ── OKR Widget ────────────────────────────────────────────────────────────────
+
+const PERIOD_LABEL: Record<string, string> = {
+  Q1: "Q1", Q2: "Q2", Q3: "Q3", Q4: "Q4", ANNUAL: "Anno",
+  M1:"Gen",M2:"Feb",M3:"Mar",M4:"Apr",M5:"Mag",M6:"Giu",
+  M7:"Lug",M8:"Ago",M9:"Set",M10:"Ott",M11:"Nov",M12:"Dic",
+};
+
+type ObjWithKRs = {
+  id: string; title: string; period: string;
+  keyResults: { type: KRType; target: number|null; current: number|null; completed: boolean }[];
+};
+
+function OkrWidget({ objectives }: { objectives: ObjWithKRs[] }) {
+  if (objectives.length === 0) return null;
+
+  return (
+    <div className="rounded-[var(--r-lg)] p-4 md:p-[18px]" style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: C.info }} />
+          <p className="text-[13px] font-medium" style={{ color: "var(--fg)" }}>Obiettivi attivi</p>
+        </div>
+        <Link href="/objectives" className="text-[12px] font-medium" style={{ color: "var(--info)" }}>
+          Tutti →
+        </Link>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        {objectives.map(obj => {
+          const pct = objectiveProgress(obj.keyResults);
+          const done = obj.keyResults.filter(kr => krProgress(kr) >= 100).length;
+          const color = pct >= 75 ? C.ok : pct >= 40 ? C.warn : C.info;
+          const circumference = 2 * Math.PI * 18;
+          const dash = (pct / 100) * circumference;
+
+          return (
+            <Link key={obj.id} href="/objectives" className="flex items-center gap-3 p-3 rounded-[var(--r-md)] transition-colors hover:bg-[var(--subtle)]" style={{ border: "1px solid var(--subtle)" }}>
+              {/* Progress ring */}
+              <div className="shrink-0 relative" style={{ width: 44, height: 44 }}>
+                <svg width="44" height="44" style={{ transform: "rotate(-90deg)" }}>
+                  <circle cx="22" cy="22" r="18" fill="none" stroke="var(--subtle)" strokeWidth="3.5" />
+                  <circle
+                    cx="22" cy="22" r="18" fill="none"
+                    stroke={color} strokeWidth="3.5"
+                    strokeDasharray={`${dash} ${circumference}`}
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center font-mono text-[11px] font-bold" style={{ color }}>
+                  {pct}%
+                </span>
+              </div>
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-medium truncate" style={{ color: "var(--fg)" }}>{obj.title}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="font-mono text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: C.info + "15", color: C.info }}>
+                    {PERIOD_LABEL[obj.period] ?? obj.period}
+                  </span>
+                  <span className="text-[11px]" style={{ color: "var(--fg-3)" }}>
+                    {done}/{obj.keyResults.length} KR
+                  </span>
+                </div>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── P&L Summary bar component ─────────────────────────────────────────────────
 
 function ProfitLossBar({
@@ -524,8 +663,8 @@ function ProfitLossBar({
 
   return (
     <div
-      className="rounded-[8px] p-[18px]"
-      style={{ backgroundColor: "#ffffff", border: "1px solid var(--border)" }}
+      className="rounded-[var(--r-lg)] p-4 md:p-[18px]"
+      style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
     >
       <div className="flex items-center gap-2 mb-4">
         <span

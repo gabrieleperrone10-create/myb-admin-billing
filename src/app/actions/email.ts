@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { renderToBuffer } from "@react-pdf/renderer";
 import InvoicePDF from "@/lib/pdf/InvoicePDF";
+import CreditNotePDF from "@/lib/pdf/CreditNotePDF";
 import { Resend } from "resend";
 import { revalidatePath } from "next/cache";
 import React from "react";
@@ -166,6 +167,139 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<{ ok: boolean
 
     revalidatePath(`/invoices/${invoiceId}`);
     revalidatePath("/invoices");
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+export async function sendCreditNoteEmail(creditNoteId: string): Promise<{ ok: boolean; error?: string }> {
+  const [creditNote, company] = await Promise.all([
+    prisma.creditNote.findUnique({ where: { id: creditNoteId } }),
+    prisma.companySettings.upsert({ where: { id: "singleton" }, update: {}, create: { id: "singleton" } }),
+  ]);
+
+  if (!creditNote) return { ok: false, error: "Nota di credito non trovata" };
+  if (!creditNote.clientEmail) return { ok: false, error: "Il cliente non ha un indirizzo email" };
+
+  const rawItems = (creditNote.lineItems ?? []) as Record<string, unknown>[];
+  const lineItems = rawItems.map(li => ({
+    description: String(li.description ?? ""),
+    quantity:    Number(li.quantity ?? 1),
+    unitPrice:   Number(li.unitPrice ?? 0),
+    total:       Number(li.total ?? 0),
+  }));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const element = React.createElement(CreditNotePDF as any, {
+    creditNote: {
+      number: creditNote.number,
+      issueDate: creditNote.issueDate,
+      reason: creditNote.reason,
+      notes: creditNote.notes,
+      amount: creditNote.amount,
+      currency: creditNote.currency,
+      lineItems,
+      originalInvoiceNumber: creditNote.originalInvoiceNumber,
+      originalInvoiceDate: creditNote.originalInvoiceDate,
+      client: {
+        name: creditNote.clientName,
+        company: creditNote.clientCompany,
+        email: creditNote.clientEmail,
+        vatNumber: creditNote.clientVatNumber,
+        fiscalCode: creditNote.clientFiscalCode,
+        address: creditNote.clientAddress,
+        city: creditNote.clientCity,
+        zip: creditNote.clientZip,
+        province: creditNote.clientProvince,
+        country: creditNote.clientCountry,
+      },
+    },
+    company: {
+      name: company.name,
+      email: company.email,
+      phone: company.phone,
+      website: company.website,
+      vatNumber: company.vatNumber,
+      fiscalCode: company.fiscalCode,
+      address: company.address,
+      city: company.city,
+      zip: company.zip,
+      province: company.province,
+      country: company.country,
+      invoiceFooter: company.invoiceFooter,
+    },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  }) as any;
+
+  const pdfBuffer = await renderToBuffer(element);
+
+  const fromName = company.name || "Market Your Business";
+  const fromEmail = process.env.EMAIL_FROM || "noreply@fatturazione.marketyourbusiness.it";
+  const replyTo = process.env.EMAIL_REPLY_TO || "amministrazione@marketyourbusiness.it";
+  const amount = new Intl.NumberFormat("it-IT", { style: "currency", currency: creditNote.currency }).format(creditNote.amount);
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="it">
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: sans-serif; color: #111827; max-width: 600px; margin: 0 auto; padding: 32px 16px;">
+
+      <div style="border-bottom: 3px solid #dc2626; padding-bottom: 16px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
+        <span style="font-size: 20px; font-weight: 700; color: #dc2626;">${fromName}</span>
+      </div>
+
+      <div style="background: #fef2f2; border-radius: 8px; padding: 10px 16px; margin-bottom: 20px; display: inline-block;">
+        <span style="font-size: 13px; font-weight: 600; color: #dc2626;">📄 NOTA DI CREDITO — ${creditNote.number}</span>
+      </div>
+
+      <p style="font-size: 16px; margin-bottom: 8px;">Gentile ${creditNote.clientName},</p>
+      <p style="color: #4b5563; line-height: 1.6;">
+        ti inviamo in allegato la nota di credito <strong>${creditNote.number}</strong> di <strong>${amount}</strong>,
+        relativa alla fattura <strong>${creditNote.originalInvoiceNumber}</strong>.
+        ${creditNote.reason ? `<br><br>Motivo: ${creditNote.reason}` : ""}
+      </p>
+
+      <p style="color: #4b5563; line-height: 1.6; margin-top: 20px;">
+        Per qualsiasi domanda o necessità di assistenza, rispondi direttamente a questa email
+        o scrivici a <a href="mailto:${replyTo}" style="color: #dc2626;">${replyTo}</a>.
+      </p>
+
+      <p style="color: #4b5563; margin-top: 20px;">Grazie,<br><strong>${fromName}</strong></p>
+
+      <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+      <p style="font-size: 11px; color: #9ca3af;">
+        ${company.email}${company.phone ? ` · ${company.phone}` : ""}${company.website ? ` · ${company.website}` : ""}
+      </p>
+    </body>
+    </html>
+  `;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: `${fromName} <${fromEmail}>`,
+      replyTo: replyTo,
+      to: [creditNote.clientEmail],
+      subject: `Nota di credito ${creditNote.number} — ${amount}`,
+      html,
+      attachments: [
+        {
+          filename: `${creditNote.number}.pdf`,
+          content: Buffer.from(pdfBuffer).toString("base64"),
+        },
+      ],
+    });
+
+    if (error) return { ok: false, error: error.message };
+
+    await prisma.creditNote.update({
+      where: { id: creditNoteId },
+      data: { status: "SENT", sentAt: new Date() },
+    });
+
+    revalidatePath(`/credit-notes/${creditNoteId}`);
+    revalidatePath("/credit-notes");
 
     return { ok: true };
   } catch (e) {

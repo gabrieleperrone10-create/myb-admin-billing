@@ -56,20 +56,24 @@ export function KpiCard({
 
   return (
     <div
-      className="rounded-[8px] p-5 flex flex-col min-h-[120px]"
-      style={{ backgroundColor: "#ffffff", border: "1px solid var(--border)" }}
+      className="rounded-[var(--r-lg)] p-4 md:p-5 flex flex-col"
+      style={{
+        backgroundColor: "var(--surface)",
+        border: "1px solid var(--border)",
+        minHeight: 110,
+      }}
     >
       {/* Row 1: eyebrow + change */}
-      <div className="flex items-start justify-between mb-3">
+      <div className="flex items-start justify-between mb-2">
         <p
-          className="font-mono text-[10px] uppercase"
-          style={{ color: "var(--fg-2)", letterSpacing: "0.12em" }}
+          className="font-mono text-[9px] md:text-[10px] uppercase"
+          style={{ color: "var(--fg-3)", letterSpacing: "0.12em" }}
         >
           {eyebrow}
         </p>
         {change !== null && change !== undefined && (
           <span
-            className="font-mono text-[11px] font-medium"
+            className="font-mono text-[10px] font-medium badge"
             style={{ color: change >= 0 ? "var(--ok)" : "var(--danger)" }}
           >
             {change >= 0 ? "↑" : "↓"} {Math.abs(change).toFixed(0)}%
@@ -79,14 +83,14 @@ export function KpiCard({
 
       {/* Row 2: value */}
       <p
-        className="font-semibold tabular-nums leading-none"
-        style={{ fontSize: "27px", letterSpacing: "-0.02em", color: vColor }}
+        className="font-bold tabular-nums leading-none"
+        style={{ fontSize: "clamp(19px, 4vw, 26px)", letterSpacing: "-0.025em", color: vColor }}
       >
         {value}
       </p>
 
       {/* Row 3: sub + sparkline */}
-      <div className="flex items-end justify-between mt-auto pt-3">
+      <div className="flex items-end justify-between mt-auto pt-2">
         {sub && (
           <p className="text-[11px] leading-tight" style={{ color: "var(--fg-3)" }}>
             {sub}

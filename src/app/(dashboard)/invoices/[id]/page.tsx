@@ -2,12 +2,15 @@ export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { ArrowLeft, CheckCircle, Send, XCircle, Download } from "lucide-react";
+import { ArrowLeft, CheckCircle, Send, XCircle, Download, FileMinus } from "lucide-react";
 import Link from "next/link";
 import MarkPaidModal from "./MarkPaidModal";
 import SendEmailButton from "./SendEmailButton";
 import WhatsAppButton from "./WhatsAppButton";
-import { updateInvoiceStatus } from "@/app/actions/invoices";
+import CreditNoteModal from "./CreditNoteModal";
+import { updateInvoiceStatus, deleteInvoice } from "@/app/actions/invoices";
+import { DeleteConfirmButton } from "@/components/ui/DeleteConfirmButton";
+import { CreditNoteStatusBadge, type CreditNoteStatus } from "@/components/ui/Badge";
 
 const STATUS_CLASS: Record<string, string> = {
   PAID: "bg-green-100 text-green-700",
@@ -26,7 +29,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
   const [invoice, company] = await Promise.all([
     prisma.invoice.findUnique({
       where: { id },
-      include: { client: true, contract: { include: { product: true } }, payment: true },
+      include: { client: true, contract: { include: { product: true } }, payment: true, creditNotes: true },
     }),
     prisma.companySettings.upsert({ where: { id: "singleton" }, update: {}, create: { id: "singleton" } }),
   ]);
@@ -43,6 +46,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
 
   const markSent = updateInvoiceStatus.bind(null, id, "SENT");
   const markCancelled = updateInvoiceStatus.bind(null, id, "CANCELLED");
+  const deleteAction = deleteInvoice.bind(null, id);
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -97,6 +101,16 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
                 <XCircle className="w-3.5 h-3.5" /> Annulla
               </button>
             </form>
+          )}
+          {invoice.status !== "DRAFT" && invoice.status !== "CANCELLED" && (
+            <CreditNoteModal invoiceId={id} invoiceNumber={invoice.number} amount={invoice.amount} />
+          )}
+          {(invoice.status === "DRAFT" || invoice.status === "CANCELLED" ||
+            invoice.number === "MYB-2026-0014" || invoice.number === "MYB-2026-0015") && (
+            <DeleteConfirmButton
+              action={deleteAction}
+              message="Eliminare definitivamente questa fattura?"
+            />
           )}
         </div>
       </div>
@@ -170,6 +184,30 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
               {invoice.payment.method.replace("_", " ")} — {formatDate(invoice.payment.paidAt)}
               {invoice.payment.reference && ` · Rif: ${invoice.payment.reference}`}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Note di credito collegate */}
+      {invoice.creditNotes.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+          <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+            <FileMinus className="w-4 h-4 text-red-500" /> Note di credito emesse
+          </p>
+          <div className="divide-y divide-gray-100">
+            {invoice.creditNotes.map((cn) => (
+              <Link
+                key={cn.id}
+                href={`/credit-notes/${cn.id}`}
+                className="flex items-center justify-between py-2.5 hover:bg-gray-50 -mx-2 px-2 rounded-lg"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="font-mono text-sm text-gray-900">{cn.number}</span>
+                  <CreditNoteStatusBadge status={cn.status as CreditNoteStatus} />
+                </div>
+                <span className="text-sm font-medium text-red-600">-{formatCurrency(cn.amount)}</span>
+              </Link>
+            ))}
           </div>
         </div>
       )}

@@ -29,9 +29,16 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+enum CreditNoteStatus {
+  ISSUED
+  SENT
+  CANCELLED
+}
+
 enum ContractType {
   RECURRING
   ONE_SHOT
+  INSTALLMENT
 }
 
 enum BillingPeriod {
@@ -59,6 +66,27 @@ enum ExpenseCategory {
   OTHER
 }
 
+enum EventType {
+  LIVE
+  WORKSHOP
+  RECORDING
+  WEBINAR
+}
+
+enum RecurrenceType {
+  ONE_TIME
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+enum RsvpStatus {
+  YES
+  NO
+  MAYBE
+}
+
 model CompanySettings {
   id         String   @id @default("singleton")
   name       String   @default("")
@@ -75,8 +103,10 @@ model CompanySettings {
   bankName   String?
   iban       String?
   bic        String?
-  invoiceFooter String?
-  updatedAt  DateTime @updatedAt
+  invoiceFooter  String?
+  bankBalance    Float?
+  bankBalanceAt  DateTime?
+  updatedAt      DateTime @updatedAt
 }
 
 model Client {
@@ -97,8 +127,9 @@ model Client {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  contracts Contract[]
-  invoices  Invoice[]
+  contracts   Contract[]
+  invoices    Invoice[]
+  creditNotes CreditNote[]
 }
 
 model Product {
@@ -174,6 +205,44 @@ model Invoice {
   client   Client    @relation(fields: [clientId], references: [id])
   contract Contract? @relation(fields: [contractId], references: [id])
   payment  Payment?
+  creditNotes CreditNote[]
+}
+
+model CreditNote {
+  id     String           @id @default(cuid())
+  number String           @unique
+  status CreditNoteStatus @default(ISSUED)
+
+  invoiceId String?
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
+  clientId  String?
+  client    Client?  @relation(fields: [clientId], references: [id])
+
+  // Snapshot dei dati cliente al momento dell'emissione — valorizzato sia per note
+  // collegate a un'Invoice esistente sia per note manuali di fatture non presenti nel gestionale.
+  clientName       String
+  clientCompany    String?
+  clientEmail      String?
+  clientVatNumber  String?
+  clientFiscalCode String?
+  clientAddress    String?
+  clientCity       String?
+  clientZip        String?
+  clientProvince   String?
+  clientCountry    String?
+
+  originalInvoiceNumber String
+  originalInvoiceDate   DateTime?
+
+  amount    Float
+  currency  String   @default("EUR")
+  reason    String
+  lineItems Json
+  issueDate DateTime @default(now())
+  sentAt    DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Payment {
@@ -216,4 +285,361 @@ model Automation {
   lastRunAt   DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model SopFolder {
+  id        String   @id @default(cuid())
+  name      String
+  color     String   @default("#4f7deb")
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  sops Sop[]
+}
+
+model SopTag {
+  id    String      @id @default(cuid())
+  name  String      @unique
+  color String      @default("#4f7deb")
+  sops  SopSopTag[]
+}
+
+model SopSopTag {
+  sopId String
+  tagId String
+
+  sop Sop    @relation(fields: [sopId], references: [id], onDelete: Cascade)
+  tag SopTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([sopId, tagId])
+}
+
+model SopAttachment {
+  id        String         @id @default(cuid())
+  sopId     String
+  type      AttachmentType
+  name      String
+  url       String
+  size      Int?
+  createdAt DateTime       @default(now())
+
+  sop Sop @relation(fields: [sopId], references: [id], onDelete: Cascade)
+}
+
+model Sop {
+  id        String   @id @default(cuid())
+  folderId  String?
+  title     String
+  content   Json     @default("{}")
+  roles     String[]
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  folder      SopFolder?      @relation(fields: [folderId], references: [id])
+  tags        SopSopTag[]
+  attachments SopAttachment[]
+}
+
+model Tag {
+  id         String           @id @default(cuid())
+  name       String           @unique
+  color      String           @default("#4f7deb")
+  createdAt  DateTime         @default(now())
+
+  members    TeamMemberTag[]
+  categories CourseCategoryTag[]
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  role      String?
+  avatarUrl String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tags      TeamMemberTag[]
+  progress  LessonProgress[]
+  rsvps     EventRsvp[]
+}
+
+model TeamMemberTag {
+  memberId String
+  tagId    String
+
+  member TeamMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  tag    Tag        @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([memberId, tagId])
+}
+
+model CourseCategory {
+  id        String   @id @default(cuid())
+  name      String
+  color     String   @default("#4f7deb")
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  requiredTags CourseCategoryTag[]
+  courses      Course[]
+}
+
+model CourseCategoryTag {
+  categoryId String
+  tagId      String
+
+  category CourseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  tag      Tag            @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([categoryId, tagId])
+}
+
+model Course {
+  id          String   @id @default(cuid())
+  categoryId  String
+  title       String
+  description String?
+  coverImage  String?
+  published   Boolean  @default(false)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  category CourseCategory @relation(fields: [categoryId], references: [id])
+  modules  Module[]
+}
+
+enum AttachmentType {
+  LINK
+  FILE
+}
+
+model Module {
+  id        String   @id @default(cuid())
+  courseId  String
+  parentId  String?
+  title     String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  parent    Module?  @relation("ModuleChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children  Module[] @relation("ModuleChildren")
+  lessons   Lesson[]
+}
+
+model Lesson {
+  id        String   @id @default(cuid())
+  moduleId  String
+  title     String
+  videoUrl  String?
+  content   String?
+  duration  Int?
+  order     Int      @default(0)
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  module      Module             @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  progress    LessonProgress[]
+  attachments LessonAttachment[]
+}
+
+model LessonAttachment {
+  id        String         @id @default(cuid())
+  lessonId  String
+  type      AttachmentType
+  name      String
+  url       String
+  size      Int?
+  createdAt DateTime       @default(now())
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+}
+
+model LessonProgress {
+  memberId    String
+  lessonId    String
+  completedAt DateTime @default(now())
+
+  member TeamMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  lesson Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@id([memberId, lessonId])
+}
+
+model Event {
+  id                 String         @id @default(cuid())
+  title              String
+  description        String?
+  type               EventType
+  date               DateTime
+  endDate            DateTime?
+  location           String?
+  meetUrl            String?
+  published          Boolean        @default(false)
+  recurrence         RecurrenceType @default(ONE_TIME)
+  recurrenceInterval Int?
+  recurrenceEndDate  DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  rsvps EventRsvp[]
+}
+
+model EventRsvp {
+  memberId String
+  eventId  String
+  status   RsvpStatus @default(YES)
+
+  member TeamMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  event  Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@id([memberId, eventId])
+}
+
+// ── Access control ────────────────────────────────────────────────────────────
+
+enum ObjectivePeriod {
+  Q1
+  Q2
+  Q3
+  Q4
+  ANNUAL
+  CUSTOM
+  M1
+  M2
+  M3
+  M4
+  M5
+  M6
+  M7
+  M8
+  M9
+  M10
+  M11
+  M12
+}
+
+enum KRType {
+  METRIC
+  MILESTONE
+}
+
+enum KRDataSource {
+  INVOICES_AMOUNT
+  CLIENT_COUNT
+  EXPENSES_AMOUNT
+  CONTRACT_COUNT
+}
+
+model Objective {
+  id          String          @id @default(cuid())
+  title       String
+  description String?
+  emoji       String          @default("🎯")
+  color       String          @default("#4f7deb")
+  period      ObjectivePeriod
+  year        Int
+  startDate   DateTime?
+  endDate     DateTime?
+  ownerId     String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  keyResults KeyResult[]
+  checkIns   CheckIn[]
+}
+
+model KeyResult {
+  id          String        @id @default(cuid())
+  objectiveId String
+  title       String
+  type        KRType        @default(METRIC)
+  target      Float?
+  current     Float?        @default(0)
+  unit        String?
+  dataSource  KRDataSource?
+  completed   Boolean       @default(false)
+  dueDate     DateTime?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  objective Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+}
+
+model CheckIn {
+  id          String   @id @default(cuid())
+  objectiveId String
+  note        String
+  createdAt   DateTime @default(now())
+
+  objective Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+}
+
+enum AppSection {
+  DASHBOARD
+  INVOICES
+  CREDIT_NOTES
+  CLIENTS
+  EXPENSES
+  CONTRACTS
+  PRODUCTS
+  PAYMENTS
+  DEPOSITS
+  ACADEMY
+  SOP
+  EVENTS
+  AUTOMATIONS
+  TEAM
+  SETTINGS
+  KNOWLEDGE
+  USERS
+  OBJECTIVES
+}
+
+enum PermissionLevel {
+  NONE
+  VIEW
+  EDIT
+  FULL
+}
+
+model AppRole {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  color       String   @default("#4f7deb")
+  isSystem    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions AppRolePermission[]
+  userRoles   AppUserRole[]
+}
+
+model AppRolePermission {
+  id      String          @id @default(cuid())
+  roleId  String
+  section AppSection
+  level   PermissionLevel @default(NONE)
+
+  role AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, section])
+}
+
+model AppUserRole {
+  id          String   @id @default(cuid())
+  clerkUserId String
+  roleId      String
+  assignedAt  DateTime @default(now())
+  assignedBy  String?
+
+  role AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([clerkUserId, roleId])
 }

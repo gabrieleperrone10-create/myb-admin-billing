@@ -53,3 +53,12 @@ export async function saveCompanySettings(formData: FormData) {
 
   revalidatePath("/settings");
 }
+
+export async function updateBankBalance(amount: number) {
+  await prisma.companySettings.upsert({
+    where: { id: "singleton" },
+    update: { bankBalance: amount, bankBalanceAt: new Date() },
+    create: { id: "singleton", bankBalance: amount, bankBalanceAt: new Date() },
+  });
+  revalidatePath("/dashboard");
+}

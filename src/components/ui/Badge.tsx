@@ -41,6 +41,7 @@ export function Badge({ variant = "neutral", children, className }: BadgeProps) 
 
 export type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "OVERDUE" | "CANCELLED";
 export type DepositStatus = "PENDING" | "PAID" | "REFUNDED";
+export type CreditNoteStatus = "ISSUED" | "SENT" | "CANCELLED";
 
 const INVOICE_STATUS: Record<InvoiceStatus, { variant: BadgeVariant; label: string }> = {
   DRAFT:     { variant: "neutral", label: "Bozza" },
@@ -56,6 +57,12 @@ const DEPOSIT_STATUS: Record<DepositStatus, { variant: BadgeVariant; label: stri
   REFUNDED: { variant: "neutral", label: "Rimborsato" },
 };
 
+const CREDIT_NOTE_STATUS: Record<CreditNoteStatus, { variant: BadgeVariant; label: string }> = {
+  ISSUED:    { variant: "info",    label: "Emessa" },
+  SENT:      { variant: "ok",      label: "Inviata" },
+  CANCELLED: { variant: "neutral", label: "Annullata" },
+};
+
 export function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
   const { variant, label } = INVOICE_STATUS[status];
   return <Badge variant={variant}>{label}</Badge>;
@@ -63,5 +70,10 @@ export function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {
 
 export function DepositStatusBadge({ status }: { status: DepositStatus }) {
   const { variant, label } = DEPOSIT_STATUS[status];
+  return <Badge variant={variant}>{label}</Badge>;
+}
+
+export function CreditNoteStatusBadge({ status }: { status: CreditNoteStatus }) {
+  const { variant, label } = CREDIT_NOTE_STATUS[status];
   return <Badge variant={variant}>{label}</Badge>;
 }

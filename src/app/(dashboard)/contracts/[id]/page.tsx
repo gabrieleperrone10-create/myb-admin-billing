@@ -6,7 +6,8 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { ArrowLeft, CheckCircle, Clock, FileText, XCircle } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
-import { updateContractStatus } from "@/app/actions/contracts";
+import { updateContractStatus, deleteContract, generateNextInvoice } from "@/app/actions/contracts";
+import { DeleteConfirmButton } from "@/components/ui/DeleteConfirmButton";
 import MarkDepositPaidModal from "./MarkDepositPaidModal";
 
 const PERIOD_LABEL: Record<string, string> = {
@@ -45,7 +46,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
       product: true,
       deposit: { include: { payment: true } },
       invoices: {
-        where:   { notes: { not: "Acconto / deposito" } },
+        where:   { OR: [{ notes: null }, { notes: { not: "Acconto / deposito" } }] },
         orderBy: { issueDate: "asc" },
       },
     },
@@ -58,23 +59,24 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
     where: { contractId: id, notes: "Acconto / deposito" },
   });
 
-  const toggleActive = updateContractStatus.bind(null, id, !contract.active);
+  const toggleActive   = updateContractStatus.bind(null, id, !contract.active);
+  const deleteAction   = deleteContract.bind(null, id);
+  const hasPaidInvoices = contract.invoices.some(inv => inv.status === "PAID");
 
-  const installmentAmount = contract.type === "ONE_SHOT" && contract.installments
-    ? contract.amount / contract.installments
-    : contract.amount;
+  const installmentAmount =
+    contract.type === "INSTALLMENT" && contract.installments
+      ? contract.amount / contract.installments
+      : contract.amount;
 
   const validInvoices = contract.invoices.filter(inv => inv.status !== "CANCELLED");
   const invoiceCount  = validInvoices.length;
   const totalInstallments = contract.installments ?? null;
   const depositReady  = !contract.deposit || contract.deposit.status === "PAID";
 
-  const nextDate = depositReady
-    ? nextInstallmentDate(
-        { ...contract, billingPeriod: contract.billingPeriod as string },
-        invoiceCount,
-      )
-    : null;
+  const nextDate = nextInstallmentDate(
+    { ...contract, billingPeriod: contract.billingPeriod as string },
+    invoiceCount,
+  );
 
   const canGenerateNext =
     depositReady &&
@@ -82,23 +84,39 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
     nextDate !== null &&
     nextDate <= new Date();
 
+  const canGenerateImmediate =
+    (totalInstallments === null || invoiceCount < totalInstallments) &&
+    nextDate !== null;
+
+  const generateAction = generateNextInvoice.bind(null, id);
+
   return (
     <div className="max-w-3xl space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <Link href="/contracts" className="text-gray-400 hover:text-gray-600"><ArrowLeft className="w-5 h-5" /></Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-gray-900">{contract.product.name}</h1>
+      <div className="flex items-start gap-3">
+        <Link href="/contracts" className="text-gray-400 hover:text-gray-600 mt-1 shrink-0"><ArrowLeft className="w-5 h-5" /></Link>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{contract.product.name}</h1>
             <Badge variant={contract.active ? "ok" : "neutral"}>{contract.active ? "Attivo" : "Inattivo"}</Badge>
           </div>
-          <p className="text-gray-500 mt-1">{contract.client.name}{contract.client.company ? ` — ${contract.client.company}` : ""}</p>
+          <div className="flex items-center justify-between gap-2 mt-1">
+            <p className="text-gray-500 text-sm truncate">{contract.client.name}{contract.client.company ? ` — ${contract.client.company}` : ""}</p>
+            <div className="flex gap-2 shrink-0">
+              <form action={toggleActive}>
+                <button type="submit" className="px-2.5 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-50 whitespace-nowrap">
+                  {contract.active ? <><XCircle className="w-3 h-3 inline mr-1" />Disattiva</> : "Riattiva"}
+                </button>
+              </form>
+              {!hasPaidInvoices && (
+                <DeleteConfirmButton
+                  action={deleteAction}
+                  message="Eliminare questo contratto e tutte le sue fatture?"
+                />
+              )}
+            </div>
+          </div>
         </div>
-        <form action={toggleActive}>
-          <button type="submit" className="px-3 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50">
-            {contract.active ? <><XCircle className="w-3.5 h-3.5 inline mr-1" />Disattiva</> : "Riattiva"}
-          </button>
-        </form>
       </div>
 
       {/* Riepilogo contratto */}
@@ -194,55 +212,84 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
               : "Le fatture verranno generate dopo il pagamento del deposito."}
           </div>
         ) : (
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-6 py-2 text-xs font-medium text-gray-500">#</th>
-                <th className="text-left px-6 py-2 text-xs font-medium text-gray-500">Numero</th>
-                <th className="text-left px-6 py-2 text-xs font-medium text-gray-500">Scadenza</th>
-                <th className="text-right px-6 py-2 text-xs font-medium text-gray-500">Importo</th>
-                <th className="text-left px-6 py-2 text-xs font-medium text-gray-500">Stato</th>
-                <th className="px-6 py-2" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
+          <>
+            {/* Mobile rows */}
+            <div className="md:hidden divide-y divide-gray-100">
               {validInvoices.map((inv, i) => {
                 const s = STATUS_INVOICE[inv.status] ?? { label: inv.status, cls: "bg-gray-100 text-gray-600" };
                 return (
-                  <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-3 text-sm text-gray-400">{i + 1}</td>
-                    <td className="px-6 py-3 text-sm font-medium text-gray-900">{inv.number}</td>
-                    <td className="px-6 py-3 text-sm text-gray-600">{formatDate(inv.dueDate)}</td>
-                    <td className="px-6 py-3 text-sm font-medium text-gray-900 text-right">{formatCurrency(inv.amount)}</td>
-                    <td className="px-6 py-3">
+                  <div key={inv.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-xs text-gray-400 shrink-0">{i + 1}</span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{inv.number}</p>
+                        <p className="text-xs text-gray-500">{formatDate(inv.dueDate)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.cls}`}>{s.label}</span>
-                    </td>
-                    <td className="px-6 py-3 text-right">
-                      <Link href={`/invoices/${inv.id}`} className="text-xs font-medium text-blue-600 hover:underline flex items-center gap-1 justify-end">
-                        <FileText className="w-3 h-3" /> Apri
-                      </Link>
-                    </td>
-                  </tr>
+                      <span className="text-sm font-semibold text-gray-900">{formatCurrency(inv.amount)}</span>
+                      <Link href={`/invoices/${inv.id}`} className="text-blue-600"><FileText className="w-4 h-4" /></Link>
+                    </div>
+                  </div>
                 );
               })}
-            </tbody>
-          </table>
+            </div>
+            {/* Desktop table */}
+            <table className="hidden md:table w-full">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-6 py-2 text-xs font-medium text-gray-500">#</th>
+                  <th className="text-left px-6 py-2 text-xs font-medium text-gray-500">Numero</th>
+                  <th className="text-left px-6 py-2 text-xs font-medium text-gray-500">Scadenza</th>
+                  <th className="text-right px-6 py-2 text-xs font-medium text-gray-500">Importo</th>
+                  <th className="text-left px-6 py-2 text-xs font-medium text-gray-500">Stato</th>
+                  <th className="px-6 py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {validInvoices.map((inv, i) => {
+                  const s = STATUS_INVOICE[inv.status] ?? { label: inv.status, cls: "bg-gray-100 text-gray-600" };
+                  return (
+                    <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-3 text-sm text-gray-400">{i + 1}</td>
+                      <td className="px-6 py-3 text-sm font-medium text-gray-900">{inv.number}</td>
+                      <td className="px-6 py-3 text-sm text-gray-600">{formatDate(inv.dueDate)}</td>
+                      <td className="px-6 py-3 text-sm font-medium text-gray-900 text-right">{formatCurrency(inv.amount)}</td>
+                      <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.cls}`}>{s.label}</span></td>
+                      <td className="px-6 py-3 text-right">
+                        <Link href={`/invoices/${inv.id}`} className="text-xs font-medium text-blue-600 hover:underline flex items-center gap-1 justify-end">
+                          <FileText className="w-3 h-3" /> Apri
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
         )}
 
         {/* Prossima rata */}
-        {nextDate && (totalInstallments === null || invoiceCount < totalInstallments) && depositReady && (
-          <div className="px-6 py-3 border-t border-dashed border-gray-200 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <Clock className="w-4 h-4" />
-              Prossima rata:
-              <span className="font-medium text-gray-700">
-                {formatDate(nextDate)} — {formatCurrency(installmentAmount)}
+        {canGenerateImmediate && (
+          <div className="px-4 md:px-6 py-3 border-t border-dashed border-gray-200 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm text-gray-500 flex-wrap">
+              <Clock className="w-4 h-4 shrink-0" />
+              <span>{invoiceCount === 0 ? "Prima rata:" : "Prossima rata:"}</span>
+              <span className="font-medium text-gray-700 whitespace-nowrap">
+                {formatDate(nextDate!)} — {formatCurrency(installmentAmount)}
               </span>
               {canGenerateNext && <span className="text-xs text-amber-600 font-medium">(scaduta)</span>}
             </div>
-            {totalInstallments && invoiceCount >= totalInstallments && (
-              <span className="text-xs text-green-600 font-medium">Piano completato ✓</span>
-            )}
+            <form action={generateAction}>
+              <button
+                type="submit"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-medium hover:bg-blue-700 shrink-0"
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Genera subito
+              </button>
+            </form>
           </div>
         )}
 

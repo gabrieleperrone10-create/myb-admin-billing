@@ -82,36 +82,66 @@ export default async function PaymentsPage({
         </div>
       </div>
 
-      <div className="bg-surface border border-border rounded-[var(--r-lg)] overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-subtle border-b border-border">
-              <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Data</th>
-              <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Cliente</th>
-              <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Riferimento</th>
-              <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Metodo</th>
-              <th className="text-right px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Importo</th>
-            </tr>
-          </thead>
-          <tbody>
-            {payments.length === 0 ? (
-              <tr><td colSpan={5}><EmptyState icon={CreditCard} title="Nessun pagamento trovato" subtitle={q || method ? "Prova a modificare i filtri" : "I pagamenti appariranno qui una volta registrati"} /></td></tr>
-            ) : payments.map((p) => {
+      {payments.length === 0 ? (
+        <div className="bg-surface border border-border rounded-[var(--r-lg)] overflow-hidden">
+          <EmptyState icon={CreditCard} title="Nessun pagamento trovato" subtitle={q || method ? "Prova a modificare i filtri" : "I pagamenti appariranno qui una volta registrati"} />
+        </div>
+      ) : (
+        <>
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-2">
+            {payments.map((p) => {
               const clientName = p.invoice?.client?.name ?? p.deposit?.contract?.client?.name ?? "—";
               const ref        = p.invoice?.number ?? (p.depositId ? "Deposito" : "—");
               return (
-                <tr key={p.id} className="border-b border-subtle hover:bg-subtle/60 transition-colors">
-                  <td className="px-4 py-2.5 font-mono text-[12px] text-fg-2">{formatDate(p.paidAt)}</td>
-                  <td className="px-4 py-2.5 text-[13px] font-medium text-fg">{clientName}</td>
-                  <td className="px-4 py-2.5 font-mono text-[11px] text-info">{ref}</td>
-                  <td className="px-4 py-2.5"><Badge variant="neutral">{METHOD_LABELS[p.method] ?? p.method}</Badge></td>
-                  <td className="px-4 py-2.5 text-right"><span className="font-mono text-[13px] font-medium text-fg tabular-nums">{formatCurrency(p.amount)}</span></td>
-                </tr>
+                <div key={p.id} className="bg-surface border border-border rounded-[var(--r-lg)] p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold text-fg truncate">{clientName}</p>
+                      <p className="font-mono text-[11px] text-info">{ref}</p>
+                    </div>
+                    <span className="font-mono text-[15px] font-semibold text-fg tabular-nums shrink-0">{formatCurrency(p.amount)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="neutral">{METHOD_LABELS[p.method] ?? p.method}</Badge>
+                    <span className="font-mono text-[11px] text-fg-3">{formatDate(p.paidAt)}</span>
+                  </div>
+                </div>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block bg-surface border border-border rounded-[var(--r-lg)] overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-subtle border-b border-border">
+                  <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Data</th>
+                  <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Cliente</th>
+                  <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Riferimento</th>
+                  <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Metodo</th>
+                  <th className="text-right px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Importo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((p) => {
+                  const clientName = p.invoice?.client?.name ?? p.deposit?.contract?.client?.name ?? "—";
+                  const ref        = p.invoice?.number ?? (p.depositId ? "Deposito" : "—");
+                  return (
+                    <tr key={p.id} className="border-b border-subtle hover:bg-subtle/60 transition-colors">
+                      <td className="px-4 py-2.5 font-mono text-[12px] text-fg-2">{formatDate(p.paidAt)}</td>
+                      <td className="px-4 py-2.5 text-[13px] font-medium text-fg">{clientName}</td>
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-info">{ref}</td>
+                      <td className="px-4 py-2.5"><Badge variant="neutral">{METHOD_LABELS[p.method] ?? p.method}</Badge></td>
+                      <td className="px-4 py-2.5 text-right"><span className="font-mono text-[13px] font-medium text-fg tabular-nums">{formatCurrency(p.amount)}</span></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

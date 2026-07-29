@@ -67,39 +67,76 @@ export default async function ContractsPage({
         </div>
       </div>
 
-      <div className="bg-surface border border-border rounded-[var(--r-lg)] overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-subtle border-b border-border">
-              <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Cliente</th>
-              <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Prodotto</th>
-              <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Tipo</th>
-              <th className="text-right px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Importo</th>
-              <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Inizio</th>
-              <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Stato</th>
-              <th className="px-4 py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {contracts.length === 0 ? (
-              <tr><td colSpan={7}><EmptyState icon={FileCheck} title="Nessun contratto trovato" subtitle={q ? `Nessun risultato per "${q}"` : "Crea il primo contratto"} action={!q ? <Link href="/contracts/new" className="inline-flex items-center gap-1.5 px-3 py-[7px] bg-fg text-white text-[13px] font-medium rounded-[var(--r-md)]"><Plus className="w-3.5 h-3.5" strokeWidth={2} />Nuovo Contratto</Link> : undefined} /></td></tr>
-            ) : contracts.map((c) => (
-              <tr key={c.id} className="border-b border-subtle hover:bg-subtle/60 transition-colors">
-                <td className="px-4 py-2.5 text-[13px] font-medium text-fg">{c.client.name}</td>
-                <td className="px-4 py-2.5 text-[13px] text-fg-2">{c.product.name}</td>
-                <td className="px-4 py-2.5"><Badge variant="info">{c.type === "RECURRING" ? "Ricorrente" : "One-shot"}</Badge></td>
-                <td className="px-4 py-2.5 text-right">
-                  <span className="font-mono text-[13px] font-medium text-fg tabular-nums">{formatCurrency(c.amount)}</span>
-                  {c.type === "RECURRING" && <span className="font-mono text-[10px] text-fg-3">/mese</span>}
-                </td>
-                <td className="px-4 py-2.5 font-mono text-[12px] text-fg-2">{formatDate(c.startDate)}</td>
-                <td className="px-4 py-2.5"><Badge variant={c.active ? "ok" : "neutral"}>{c.active ? "Attivo" : "Inattivo"}</Badge></td>
-                <td className="px-4 py-2.5 text-right"><Link href={`/contracts/${c.id}`} className="text-[12px] font-medium text-info hover:underline">Dettagli</Link></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {contracts.length === 0 ? (
+        <div className="bg-surface border border-border rounded-[var(--r-lg)] overflow-hidden">
+          <EmptyState icon={FileCheck} title="Nessun contratto trovato" subtitle={q ? `Nessun risultato per "${q}"` : "Crea il primo contratto"} action={!q ? <Link href="/contracts/new" className="inline-flex items-center gap-1.5 px-3 py-[7px] bg-fg text-white text-[13px] font-medium rounded-[var(--r-md)]"><Plus className="w-3.5 h-3.5" strokeWidth={2} />Nuovo Contratto</Link> : undefined} />
+        </div>
+      ) : (
+        <>
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-2">
+            {contracts.map((c) => {
+              const typeLabel = c.type === "RECURRING" ? "Ricorrente" : c.type === "INSTALLMENT" ? "A Rate" : "Una Tantum";
+              return (
+                <Link key={c.id} href={`/contracts/${c.id}`} className="block bg-surface border border-border rounded-[var(--r-lg)] p-4 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold text-fg truncate">{c.client.name}</p>
+                      <p className="text-[12px] text-fg-3 truncate">{c.product.name}</p>
+                    </div>
+                    <Badge variant={c.active ? "ok" : "neutral"}>{c.active ? "Attivo" : "Inattivo"}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="info">{typeLabel}</Badge>
+                      <span className="font-mono text-[11px] text-fg-3">{formatDate(c.startDate)}</span>
+                    </div>
+                    <span className="font-mono text-[14px] font-semibold text-fg tabular-nums">
+                      {formatCurrency(c.amount)}{c.type === "RECURRING" && <span className="text-[10px] text-fg-3">/mese</span>}
+                    </span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block bg-surface border border-border rounded-[var(--r-lg)] overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-subtle border-b border-border">
+                  <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Cliente</th>
+                  <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Prodotto</th>
+                  <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Tipo</th>
+                  <th className="text-right px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Importo</th>
+                  <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Inizio</th>
+                  <th className="text-left px-4 py-2 font-mono text-[10px] uppercase tracking-table-head text-fg-3">Stato</th>
+                  <th className="px-4 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {contracts.map((c) => {
+                  const typeLabel = c.type === "RECURRING" ? "Ricorrente" : c.type === "INSTALLMENT" ? "A Rate" : "Una Tantum";
+                  return (
+                    <tr key={c.id} className="border-b border-subtle hover:bg-subtle/60 transition-colors">
+                      <td className="px-4 py-2.5 text-[13px] font-medium text-fg">{c.client.name}</td>
+                      <td className="px-4 py-2.5 text-[13px] text-fg-2">{c.product.name}</td>
+                      <td className="px-4 py-2.5"><Badge variant="info">{typeLabel}</Badge></td>
+                      <td className="px-4 py-2.5 text-right">
+                        <span className="font-mono text-[13px] font-medium text-fg tabular-nums">{formatCurrency(c.amount)}</span>
+                        {c.type === "RECURRING" && <span className="font-mono text-[10px] text-fg-3">/mese</span>}
+                      </td>
+                      <td className="px-4 py-2.5 font-mono text-[12px] text-fg-2">{formatDate(c.startDate)}</td>
+                      <td className="px-4 py-2.5"><Badge variant={c.active ? "ok" : "neutral"}>{c.active ? "Attivo" : "Inattivo"}</Badge></td>
+                      <td className="px-4 py-2.5 text-right"><Link href={`/contracts/${c.id}`} className="text-[12px] font-medium text-info hover:underline">Dettagli</Link></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

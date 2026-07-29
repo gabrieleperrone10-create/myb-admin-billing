@@ -20,7 +20,6 @@ async function nextInvoiceNumber() {
 }
 
 export async function GET(req: NextRequest) {
-  // Vercel cron auth
   const authHeader = req.headers.get("authorization");
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -39,66 +38,76 @@ export async function GET(req: NextRequest) {
       product: true,
       deposit:  true,
       invoices: {
-        where:   { notes: { not: "Acconto / deposito" }, status: { not: "CANCELLED" } },
+        where:   { OR: [{ notes: null }, { notes: { not: "Acconto / deposito" } }], status: { not: "CANCELLED" } },
         orderBy: { issueDate: "asc" },
       },
     },
   });
 
-  const today    = new Date();
+  const today   = new Date();
   const created: string[] = [];
 
   for (const contract of contracts) {
     // Non iniziare le rate se il deposito non è stato pagato
     if (contract.deposit && contract.deposit.status !== "PAID") continue;
 
-    const months           = PERIOD_MONTHS[contract.billingPeriod] ?? 1;
-    const day              = contract.billingDay ?? 1;
-    const invoiceCount     = contract.invoices.length;
-    const totalInstallments = contract.installments;
+    const months = PERIOD_MONTHS[contract.billingPeriod] ?? 1;
+    const day    = contract.billingDay ?? 1;
+    const start  = new Date(contract.startDate);
 
-    // Contratto ONE_SHOT completato
-    if (totalInstallments !== null && invoiceCount >= totalInstallments) continue;
+    // Genera TUTTE le fatture arretrate in un'unica passata
+    let invoiceCount = contract.invoices.length;
 
-    // Calcola data prossima rata
-    const start    = new Date(contract.startDate);
-    const nextDate = new Date(start.getFullYear(), start.getMonth() + invoiceCount * months, day);
+    while (true) {
+      // ONE_SHOT: max 1 fattura
+      if (contract.type === "ONE_SHOT" && invoiceCount >= 1) break;
 
-    // Non ancora in scadenza
-    if (nextDate > today) continue;
+      // INSTALLMENT: max N rate
+      if (contract.type === "INSTALLMENT") {
+        const n = contract.installments ?? 1;
+        if (invoiceCount >= n) break;
+      }
 
-    // Data fine contratto superata
-    if (contract.endDate && nextDate > new Date(contract.endDate)) continue;
+      const nextDate = new Date(start.getFullYear(), start.getMonth() + invoiceCount * months, day);
 
-    const installmentAmount = totalInstallments
-      ? contract.amount / totalInstallments
-      : contract.amount;
+      // Non ancora in scadenza
+      if (nextDate > today) break;
 
-    const number = await nextInvoiceNumber();
-    const dueDate = new Date(nextDate);
-    dueDate.setDate(dueDate.getDate() + 15); // 15 giorni per pagare
+      // Data fine contratto superata (solo RECURRING)
+      if (contract.type === "RECURRING" && contract.endDate && nextDate > new Date(contract.endDate)) break;
 
-    await prisma.invoice.create({
-      data: {
-        number,
-        clientId:   contract.clientId,
-        contractId: contract.id,
-        amount:     installmentAmount,
-        status:     "DRAFT",
-        issueDate:  nextDate,
-        dueDate,
-        lineItems:  [
-          {
-            description: `${contract.product.name} — rata ${invoiceCount + 1}${totalInstallments ? `/${totalInstallments}` : ""}`,
-            quantity:    1,
-            unitPrice:   installmentAmount,
-            total:       installmentAmount,
-          },
-        ],
-      },
-    });
+      const installmentAmount =
+        contract.type === "INSTALLMENT"
+          ? contract.amount / (contract.installments ?? 1)
+          : contract.amount;
 
-    created.push(`${contract.id} → ${number}`);
+      const dueDate = new Date(nextDate);
+      dueDate.setDate(dueDate.getDate() + 15);
+
+      const number = await nextInvoiceNumber();
+      await prisma.invoice.create({
+        data: {
+          number,
+          clientId:   contract.clientId,
+          contractId: contract.id,
+          amount:     installmentAmount,
+          status:     "DRAFT",
+          issueDate:  nextDate,
+          dueDate,
+          lineItems: [
+            {
+              description: `${contract.product.name} — rata ${invoiceCount + 1}${contract.installments ? `/${contract.installments}` : ""}`,
+              quantity:    1,
+              unitPrice:   installmentAmount,
+              total:       installmentAmount,
+            },
+          ],
+        },
+      });
+
+      created.push(`${contract.id} → ${number} (rata ${invoiceCount + 1})`);
+      invoiceCount++;
+    }
   }
 
   await prisma.automation.update({

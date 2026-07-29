@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { Download, Plus, ChevronDown } from "lucide-react";
+import { Download, Plus, ChevronDown, ChevronLeft, Sparkles } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import { ThemeToggle } from "./ThemeToggle";
 
 const SECTIONS: Record<string, string> = {
   dashboard:   "Dashboard",
@@ -12,16 +13,24 @@ const SECTIONS: Record<string, string> = {
   contracts:   "Contratti",
   deposits:    "Depositi",
   invoices:    "Fatture",
+  "credit-notes": "Note di credito",
   payments:    "Pagamenti",
   expenses:    "Spese",
   automations: "Automazioni",
   knowledge:   "Knowledge Base",
   settings:    "Impostazioni",
+  team:        "Team",
+  academy:     "Academy",
+  events:      "Eventi",
+  sop:         "SOP",
+  objectives:  "Obiettivi",
+  profile:     "Profilo",
 };
 
 const PAGE_CTA: Record<string, { label: string; href: string }> = {
   dashboard: { label: "Nuova fattura",   href: "/invoices/new" },
   invoices:  { label: "Nuova fattura",   href: "/invoices/new" },
+  "credit-notes": { label: "Nuova nota di credito", href: "/credit-notes/new" },
   clients:   { label: "Nuovo cliente",   href: "/clients/new" },
   contracts: { label: "Nuovo contratto", href: "/contracts/new" },
   products:  { label: "Nuovo prodotto",  href: "/products/new" },
@@ -39,32 +48,38 @@ const EXPORTABLE: Record<string, string> = {
 };
 
 const PERIOD_OPTIONS = [
-  { label: "Oggi",          value: "day" },
+  { label: "Oggi",             value: "day" },
   { label: "Questa settimana", value: "week" },
-  { label: "Questo mese",  value: "month" },
-  { label: "Quest'anno",   value: "year" },
-  { label: "Da sempre",    value: "all" },
+  { label: "Questo mese",      value: "month" },
+  { label: "Quest'anno",       value: "year" },
+  { label: "Da sempre",        value: "all" },
 ];
 
 export default function Topbar() {
-  const pathname    = usePathname();
+  const pathname     = usePathname();
   const searchParams = useSearchParams();
-  const router      = useRouter();
-  const parts       = pathname.split("/").filter(Boolean);
-  const rootKey     = parts[0] ?? "dashboard";
-  const section     = SECTIONS[rootKey] ?? "—";
-  const isNew       = parts[1] === "new";
-  const isDetail    = parts.length > 1 && !isNew;
-  const cta         = PAGE_CTA[rootKey];
+  const router       = useRouter();
+  const parts        = pathname.split("/").filter(Boolean);
+  const rootKey      = parts[0] ?? "dashboard";
+  const isNew        = parts[1] === "new";
+
+  const SETTINGS_SUB: Record<string, string> = { users: "Utenti", roles: "Ruoli" };
+  const settingsSub = rootKey === "settings" && parts[1] ? SETTINGS_SUB[parts[1]] : null;
+  const section      = settingsSub ?? SECTIONS[rootKey] ?? "—";
+  const isDetail     = settingsSub
+    ? parts.length > 2
+    : parts.length > 1 && !isNew && rootKey !== "profile";
+  const cta          = PAGE_CTA[rootKey];
   const exportEntity = EXPORTABLE[rootKey];
+
+  const showBack = isNew || isDetail;
+  const backHref = `/${rootKey}`;
 
   const [periodOpen, setPeriodOpen] = useState(false);
   const periodRef = useRef<HTMLDivElement>(null);
 
-  const now       = new Date();
   const currentPeriod = searchParams.get("period") ?? "month";
-  const periodLabel = PERIOD_OPTIONS.find(p => p.value === currentPeriod)?.label
-    ?? now.toLocaleDateString("it-IT", { month: "long", year: "numeric" });
+  const periodLabel   = PERIOD_OPTIONS.find(p => p.value === currentPeriod)?.label ?? "Questo mese";
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -93,26 +108,67 @@ export default function Topbar() {
 
   return (
     <header
-      className="h-[52px] shrink-0 flex items-center px-7 gap-3"
-      style={{ backgroundColor: "#ffffff", borderBottom: "1px solid var(--border)" }}
+      className="shrink-0 flex items-center gap-3"
+      style={{
+        backgroundColor: "var(--surface)",
+        borderBottom: "1px solid var(--border)",
+        height: "var(--topbar-h)",
+        paddingLeft: "max(16px, env(safe-area-inset-left))",
+        paddingRight: "max(16px, env(safe-area-inset-right))",
+        paddingTop: "env(safe-area-inset-top)",
+      }}
     >
-      {/* Breadcrumb */}
-      <nav className="flex items-center gap-1.5 font-mono text-[12px] flex-1 min-w-0" style={{ color: "var(--fg-3)" }}>
-        <span style={{ color: "var(--fg-2)" }}>{section}</span>
-        {isNew    && <><span style={{ opacity: 0.4 }}>›</span><span style={{ color: "var(--fg-2)" }}>Nuovo</span></>}
-        {isDetail && <><span style={{ opacity: 0.4 }}>›</span><span style={{ color: "var(--fg-2)" }}>Dettaglio</span></>}
-        <span style={{ opacity: 0.3, margin: "0 4px" }}>·</span>
-        <span className="capitalize">{now.toLocaleDateString("it-IT", { month: "long", year: "numeric" })}</span>
-      </nav>
+      {/* Mobile: back button or logo */}
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        {showBack && (
+          <Link
+            href={backHref}
+            className="md:hidden flex items-center justify-center rounded-[var(--r-md)] mr-1"
+            style={{
+              color: "var(--info)",
+              backgroundColor: "var(--subtle)",
+              width: 36,
+              height: 36,
+              minHeight: "unset",
+              minWidth: "unset",
+            }}
+          >
+            <ChevronLeft className="w-5 h-5" strokeWidth={2} />
+          </Link>
+        )}
+
+        {/* Desktop breadcrumb / Mobile title */}
+        <div className="flex-1 min-w-0">
+          {/* Desktop breadcrumb */}
+          <nav className="hidden md:flex items-center gap-1.5 font-mono text-[12px]" style={{ color: "var(--fg-3)" }}>
+            <span style={{ color: "var(--fg-2)" }}>{section}</span>
+            {isNew    && <><span style={{ opacity: 0.4 }}>›</span><span style={{ color: "var(--fg-2)" }}>Nuovo</span></>}
+            {isDetail && <><span style={{ opacity: 0.4 }}>›</span><span style={{ color: "var(--fg-2)" }}>Dettaglio</span></>}
+          </nav>
+
+          {/* Mobile title */}
+          <h1
+            className="md:hidden text-[17px] font-semibold truncate"
+            style={{ color: "var(--fg)", letterSpacing: "-0.01em" }}
+          >
+            {isNew ? `Nuovo · ${section}` : isDetail ? section : section}
+          </h1>
+        </div>
+      </div>
 
       {/* Right actions */}
       <div className="flex items-center gap-2 shrink-0">
-        {/* Period filter dropdown */}
-        <div className="relative hidden sm:block" ref={periodRef}>
+        {/* Period filter — desktop only */}
+        <div className="relative hidden md:block" ref={periodRef}>
           <button
             onClick={() => setPeriodOpen(v => !v)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[6px] text-[12px] font-medium transition-colors"
-            style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", color: "var(--fg-2)" }}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--r-md)] text-[12px] font-medium transition-colors"
+            style={{
+              backgroundColor: "var(--subtle)",
+              border: "1px solid var(--border)",
+              color: "var(--fg-2)",
+              minHeight: "unset",
+            }}
           >
             <span className="capitalize">{periodLabel}</span>
             <ChevronDown className="w-3 h-3" strokeWidth={1.8} />
@@ -120,18 +176,23 @@ export default function Topbar() {
 
           {periodOpen && (
             <div
-              className="absolute right-0 top-full mt-1 rounded-[8px] py-1 z-50 min-w-[160px]"
-              style={{ backgroundColor: "#ffffff", border: "1px solid var(--border)", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" }}
+              className="absolute right-0 top-full mt-1 rounded-[var(--r-lg)] py-1 z-50 min-w-[160px] animate-scale-in"
+              style={{
+                backgroundColor: "var(--surface)",
+                border: "1px solid var(--border)",
+                boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
+              }}
             >
               {PERIOD_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
                   onClick={() => setPeriod(opt.value)}
-                  className="w-full text-left px-3 py-1.5 text-[12px] transition-colors"
+                  className="w-full text-left px-3 py-2 text-[12px] transition-colors"
                   style={{
                     color: currentPeriod === opt.value ? "var(--fg)" : "var(--fg-2)",
                     fontWeight: currentPeriod === opt.value ? 500 : 400,
                     backgroundColor: currentPeriod === opt.value ? "var(--subtle)" : "transparent",
+                    minHeight: "unset",
                   }}
                 >
                   {opt.label}
@@ -141,27 +202,60 @@ export default function Topbar() {
           )}
         </div>
 
-        {/* Export */}
+        {/* Export — desktop only */}
         {exportEntity && (
           <button
             onClick={handleExport}
-            className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[6px] text-[12px] font-medium transition-colors"
-            style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)", color: "var(--fg-2)" }}
+            className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[var(--r-md)] text-[12px] font-medium transition-colors"
+            style={{
+              backgroundColor: "var(--subtle)",
+              border: "1px solid var(--border)",
+              color: "var(--fg-2)",
+              minHeight: "unset",
+            }}
           >
             <Download className="w-3 h-3" strokeWidth={1.6} />
-            Esporta CSV
+            CSV
           </button>
+        )}
+
+        {/* Theme toggle — desktop only (mobile is in sidebar / more drawer) */}
+        <div className="hidden md:block">
+          <ThemeToggle />
+        </div>
+
+        {/* AI Invoice button — only on invoices section */}
+        {rootKey === "invoices" && !isNew && !isDetail && (
+          <Link
+            href="/invoices/ai"
+            className="hidden md:inline-flex items-center justify-center gap-1.5 px-3 rounded-[var(--r-md)] text-[13px] font-semibold transition-colors"
+            style={{
+              background: "linear-gradient(135deg, #4f7deb, #8b5cf6)",
+              color: "white",
+              height: 36,
+              minHeight: "unset",
+            }}
+          >
+            <Sparkles className="w-3.5 h-3.5" strokeWidth={2} />
+            AI
+          </Link>
         )}
 
         {/* Primary CTA */}
         {cta && (
           <Link
             href={cta.href}
-            className="inline-flex items-center gap-1.5 px-3 py-[7px] rounded-[6px] text-[12px] font-medium transition-colors"
-            style={{ backgroundColor: "var(--fg)", color: "#ffffff" }}
+            className="inline-flex items-center justify-center gap-1.5 px-3 rounded-[var(--r-md)] text-[13px] font-semibold transition-colors"
+            style={{
+              backgroundColor: "var(--fg)",
+              color: "var(--surface)",
+              height: 36,
+              minHeight: "unset",
+            }}
           >
-            <Plus className="w-3.5 h-3.5" strokeWidth={2.2} />
-            {cta.label}
+            <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
+            <span className="hidden sm:inline">{cta.label}</span>
+            <span className="sm:hidden">Nuovo</span>
           </Link>
         )}
       </div>

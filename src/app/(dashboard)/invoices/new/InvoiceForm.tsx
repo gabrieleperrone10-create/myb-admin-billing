@@ -29,6 +29,7 @@ export default function InvoiceForm({ clients, contracts }: Props) {
   const [lineItems, setLineItems] = useState<LineItem[]>([
     { description: "", quantity: 1, unitPrice: 0, total: 0 },
   ]);
+  const [invoiceStatus, setInvoiceStatus] = useState("DRAFT");
   const router = useRouter();
 
   const clientOptions = clients.map((c) => ({
@@ -81,10 +82,32 @@ export default function InvoiceForm({ clients, contracts }: Props) {
       </section>
 
       <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
-        <h2 className="font-semibold text-gray-900">Date</h2>
+        <h2 className="font-semibold text-gray-900">Date e stato</h2>
         <div className="grid grid-cols-2 gap-5">
           <Input label="Data emissione" name="issueDate" type="date" required defaultValue={new Date().toISOString().split("T")[0]} />
           <Input label="Scadenza" name="dueDate" type="date" required defaultValue={defaultDueDate()} />
+        </div>
+        <div className="grid grid-cols-2 gap-5">
+          <Select
+            label="Stato"
+            name="status"
+            value={invoiceStatus}
+            onChange={e => setInvoiceStatus(e.target.value)}
+            options={[
+              { value: "DRAFT", label: "Bozza" },
+              { value: "SENT",  label: "Inviata" },
+              { value: "PAID",  label: "Pagata" },
+            ]}
+          />
+          {invoiceStatus === "PAID" && (
+            <Input
+              label="Data pagamento"
+              name="paidAt"
+              type="date"
+              required
+              defaultValue={new Date().toISOString().split("T")[0]}
+            />
+          )}
         </div>
       </section>
 
