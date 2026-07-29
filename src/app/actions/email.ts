@@ -306,3 +306,245 @@ export async function sendCreditNoteEmail(creditNoteId: string): Promise<{ ok: b
     return { ok: false, error: String(e) };
   }
 }
+
+const CONTRACT_TYPE_LABEL: Record<string, string> = {
+  RECURRING: "Ricorrente",
+  ONE_SHOT: "Una tantum",
+  INSTALLMENT: "A rate",
+};
+
+const BILLING_PERIOD_LABEL: Record<string, string> = {
+  MONTHLY: "mensile",
+  QUARTERLY: "trimestrale",
+  ANNUALLY: "annuale",
+};
+
+export async function sendContractCreatedEmails(contractId: string): Promise<{ ok: boolean; error?: string }> {
+  const [contract, company] = await Promise.all([
+    prisma.contract.findUnique({ where: { id: contractId }, include: { client: true, product: true } }),
+    prisma.companySettings.upsert({ where: { id: "singleton" }, update: {}, create: { id: "singleton" } }),
+  ]);
+
+  if (!contract) return { ok: false, error: "Contratto non trovato" };
+
+  const fromName  = company.name || "Market Your Business";
+  const fromEmail = process.env.EMAIL_FROM || "noreply@fatturazione.marketyourbusiness.it";
+  const replyTo   = process.env.EMAIL_REPLY_TO || "amministrazione@marketyourbusiness.it";
+
+  const amount      = new Intl.NumberFormat("it-IT", { style: "currency", currency: contract.currency }).format(contract.amount);
+  const startDate   = new Intl.DateTimeFormat("it-IT").format(new Date(contract.startDate));
+  const endDate     = contract.endDate ? new Intl.DateTimeFormat("it-IT").format(new Date(contract.endDate)) : null;
+  const typeLabel   = CONTRACT_TYPE_LABEL[contract.type] || contract.type;
+  const periodLabel = contract.type !== "ONE_SHOT" ? ` (fatturazione ${BILLING_PERIOD_LABEL[contract.billingPeriod] || contract.billingPeriod})` : "";
+
+  const detailsRows = `
+    <p style="margin:4px 0;font-size:14px;color:#374151;">Servizio: <strong>${contract.product.name}</strong></p>
+    <p style="margin:4px 0;font-size:14px;color:#374151;">Tipo: <strong>${typeLabel}${periodLabel}</strong></p>
+    <p style="margin:4px 0;font-size:14px;color:#374151;">Importo: <strong>${amount}</strong></p>
+    <p style="margin:4px 0;font-size:14px;color:#374151;">Durata: <strong>dal ${startDate}${endDate ? ` al ${endDate}` : " (senza scadenza)"}</strong></p>
+  `;
+
+  let clientOk = true;
+  let clientError: string | undefined;
+
+  if (contract.client.email) {
+    try {
+      const html = `
+        <!DOCTYPE html><html lang="it"><head><meta charset="utf-8"></head>
+        <body style="font-family:sans-serif;color:#111827;max-width:600px;margin:0 auto;padding:32px 16px;">
+          <div style="border-bottom:3px solid #2563eb;padding-bottom:16px;margin-bottom:24px;">
+            <span style="font-size:20px;font-weight:700;color:#2563eb;">${fromName}</span>
+          </div>
+          <div style="background:#eff6ff;border-radius:8px;padding:10px 16px;margin-bottom:20px;display:inline-block;">
+            <span style="font-size:13px;font-weight:600;color:#2563eb;">✅ CONTRATTO ATTIVATO</span>
+          </div>
+          <p style="font-size:16px;margin-bottom:8px;">Gentile ${contract.client.name},</p>
+          <p style="color:#4b5563;line-height:1.6;">
+            grazie per aver scelto <strong>${fromName}</strong>! Ti confermiamo che il tuo contratto è stato attivato con successo.
+          </p>
+          <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:24px 0;">
+            <p style="font-size:12px;font-weight:600;color:#2563eb;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 10px;">Dettagli contratto</p>
+            ${detailsRows}
+          </div>
+          <p style="color:#4b5563;line-height:1.6;">
+            Per qualsiasi domanda siamo a disposizione — scrivici a <a href="mailto:${replyTo}" style="color:#2563eb;">${replyTo}</a>${company.phone ? ` o chiamaci al ${company.phone}` : ""}.
+          </p>
+          <p style="color:#4b5563;margin-top:20px;">Grazie ancora,<br><strong>${fromName}</strong></p>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+          <p style="font-size:11px;color:#9ca3af;">${company.email}${company.phone ? ` · ${company.phone}` : ""}${company.website ? ` · ${company.website}` : ""}</p>
+        </body></html>
+      `;
+
+      const { error } = await resend.emails.send({
+        from:    `${fromName} <${fromEmail}>`,
+        replyTo,
+        to:      [contract.client.email],
+        subject: `Il tuo contratto con ${fromName} è attivo — ${contract.product.name}`,
+        html,
+      });
+      if (error) { clientOk = false; clientError = error.message; }
+    } catch (e) {
+      clientOk = false; clientError = String(e);
+    }
+  }
+
+  // Email interna — non deve mai bloccare l'esito verso il cliente
+  try {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+    const html = `
+      <!DOCTYPE html><html lang="it"><head><meta charset="utf-8"></head>
+      <body style="font-family:sans-serif;color:#111827;max-width:600px;margin:0 auto;padding:32px 16px;">
+        <div style="border-bottom:3px solid #2563eb;padding-bottom:16px;margin-bottom:24px;">
+          <span style="font-size:20px;font-weight:700;color:#2563eb;">${fromName}</span>
+        </div>
+        <div style="background:#eff6ff;border-radius:8px;padding:10px 16px;margin-bottom:20px;display:inline-block;">
+          <span style="font-size:13px;font-weight:600;color:#2563eb;">🆕 NUOVO CONTRATTO</span>
+        </div>
+        <p style="font-size:16px;margin-bottom:8px;">Nuovo contratto creato per <strong>${contract.client.name}</strong>.</p>
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:24px 0;">
+          ${detailsRows}
+          <p style="margin:4px 0;font-size:14px;color:#374151;">Cliente: <strong>${contract.client.name}</strong>${contract.client.email ? ` — ${contract.client.email}` : ""}</p>
+        </div>
+        ${appUrl ? `<p style="color:#4b5563;"><a href="${appUrl}/contracts/${contract.id}" style="color:#2563eb;">Apri il contratto nel gestionale →</a></p>` : ""}
+      </body></html>
+    `;
+
+    await resend.emails.send({
+      from:    `${fromName} <${fromEmail}>`,
+      replyTo,
+      to:      [replyTo],
+      subject: `Nuovo contratto: ${contract.client.name} — ${contract.product.name}`,
+      html,
+    });
+  } catch {
+    // non bloccare per il fallimento dell'email interna
+  }
+
+  return clientOk ? { ok: true } : { ok: false, error: clientError };
+}
+
+export async function sendContractExpiringEmails(contractId: string, daysUntil: 30 | 7 | 1 | 0): Promise<{ ok: boolean; error?: string }> {
+  const [contract, company] = await Promise.all([
+    prisma.contract.findUnique({ where: { id: contractId }, include: { client: true, product: true } }),
+    prisma.companySettings.upsert({ where: { id: "singleton" }, update: {}, create: { id: "singleton" } }),
+  ]);
+
+  if (!contract || !contract.endDate) return { ok: false, error: "Contratto non trovato o senza scadenza" };
+
+  const fromName   = company.name || "Market Your Business";
+  const fromEmail  = process.env.EMAIL_FROM || "noreply@fatturazione.marketyourbusiness.it";
+  const replyTo    = process.env.EMAIL_REPLY_TO || "amministrazione@marketyourbusiness.it";
+  const endDateFmt = new Intl.DateTimeFormat("it-IT").format(new Date(contract.endDate));
+
+  let badgeLabel: string, accentColor: string, badgeBg: string, subject: string, clientBody: string, internalUrgency: string;
+
+  if (daysUntil === 30) {
+    badgeLabel = "⏳ CONTRATTO IN SCADENZA";
+    accentColor = "#2563eb"; badgeBg = "#eff6ff";
+    subject = "Il tuo contratto scade tra 30 giorni";
+    internalUrgency = "tra 30 giorni";
+    clientBody = `
+      ti scriviamo per informarti che il tuo contratto (<strong>${contract.product.name}</strong>) scadrà il
+      <strong>${endDateFmt}</strong>, tra 30 giorni. Se hai domande o vuoi parlare del rinnovo, scrivici a
+      <a href="mailto:${replyTo}" style="color:${accentColor};">${replyTo}</a> e/o contatta il tuo tutor di riferimento.
+      In ogni caso, ti contatteremo noi nei prossimi giorni per parlarne insieme.
+    `;
+  } else if (daysUntil === 7) {
+    badgeLabel = "⏳ PROMEMORIA SCADENZA";
+    accentColor = "#2563eb"; badgeBg = "#eff6ff";
+    subject = "Promemoria: il tuo contratto scade tra 7 giorni";
+    internalUrgency = "tra 7 giorni";
+    clientBody = `
+      un piccolo promemoria: il tuo contratto (<strong>${contract.product.name}</strong>) scadrà il
+      <strong>${endDateFmt}</strong>, tra una settimana. Se vuoi parlarne, siamo a disposizione a
+      <a href="mailto:${replyTo}" style="color:${accentColor};">${replyTo}</a>.
+    `;
+  } else if (daysUntil === 1) {
+    badgeLabel = "⚠️ CONTRATTO IN SCADENZA DOMANI";
+    accentColor = "#c78b2a"; badgeBg = "#fffbeb";
+    subject = "Il tuo contratto scade domani";
+    internalUrgency = "domani";
+    clientBody = `
+      il tuo contratto (<strong>${contract.product.name}</strong>) scade <strong>domani, ${endDateFmt}</strong>.
+      Se non ne abbiamo già parlato, scrivici quanto prima a
+      <a href="mailto:${replyTo}" style="color:${accentColor};">${replyTo}</a> o contatta il tuo tutor di riferimento.
+    `;
+  } else {
+    badgeLabel = "🔴 CONTRATTO SCADE OGGI";
+    accentColor = "#dc2626"; badgeBg = "#fef2f2";
+    subject = "Il tuo contratto scade oggi";
+    internalUrgency = "oggi";
+    clientBody = `
+      oggi è l'ultimo giorno del tuo contratto (<strong>${contract.product.name}</strong>) con noi.
+      Se vuoi continuare a lavorare insieme, contattaci il prima possibile a
+      <a href="mailto:${replyTo}" style="color:${accentColor};">${replyTo}</a>.
+    `;
+  }
+
+  let clientOk = true;
+  let clientError: string | undefined;
+
+  if (contract.client.email) {
+    try {
+      const html = `
+        <!DOCTYPE html><html lang="it"><head><meta charset="utf-8"></head>
+        <body style="font-family:sans-serif;color:#111827;max-width:600px;margin:0 auto;padding:32px 16px;">
+          <div style="border-bottom:3px solid ${accentColor};padding-bottom:16px;margin-bottom:24px;">
+            <span style="font-size:20px;font-weight:700;color:${accentColor};">${fromName}</span>
+          </div>
+          <div style="background:${badgeBg};border-radius:8px;padding:10px 16px;margin-bottom:20px;display:inline-block;">
+            <span style="font-size:13px;font-weight:600;color:${accentColor};">${badgeLabel}</span>
+          </div>
+          <p style="font-size:16px;margin-bottom:8px;">Gentile ${contract.client.name},</p>
+          <p style="color:#4b5563;line-height:1.6;">${clientBody}</p>
+          <p style="color:#4b5563;margin-top:20px;">Grazie,<br><strong>${fromName}</strong></p>
+          <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+          <p style="font-size:11px;color:#9ca3af;">${company.email}${company.phone ? ` · ${company.phone}` : ""}${company.website ? ` · ${company.website}` : ""}</p>
+        </body></html>
+      `;
+
+      const { error } = await resend.emails.send({
+        from:    `${fromName} <${fromEmail}>`,
+        replyTo,
+        to:      [contract.client.email],
+        subject,
+        html,
+      });
+      if (error) { clientOk = false; clientError = error.message; }
+    } catch (e) {
+      clientOk = false; clientError = String(e);
+    }
+  }
+
+  // Promemoria interno — non deve mai bloccare l'esito verso il cliente
+  try {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+    const amount = new Intl.NumberFormat("it-IT", { style: "currency", currency: contract.currency }).format(contract.amount);
+    const html = `
+      <!DOCTYPE html><html lang="it"><head><meta charset="utf-8"></head>
+      <body style="font-family:sans-serif;color:#111827;max-width:600px;margin:0 auto;padding:32px 16px;">
+        <div style="border-bottom:3px solid ${accentColor};padding-bottom:16px;margin-bottom:24px;">
+          <span style="font-size:20px;font-weight:700;color:${accentColor};">${fromName}</span>
+        </div>
+        <p style="font-size:16px;color:#111827;">
+          Il contratto di <strong>${contract.client.name}</strong> (${contract.product.name}, ${amount}) scade
+          <strong>${internalUrgency}</strong> (${endDateFmt}).
+        </p>
+        <p style="color:#4b5563;">Ricordati di contattarlo — al cliente abbiamo già scritto che lo faremo noi nei prossimi giorni.</p>
+        ${appUrl ? `<p><a href="${appUrl}/contracts/${contract.id}" style="color:${accentColor};">Apri il contratto nel gestionale →</a></p>` : ""}
+      </body></html>
+    `;
+
+    await resend.emails.send({
+      from:    `${fromName} <${fromEmail}>`,
+      replyTo,
+      to:      [replyTo],
+      subject: `[Contratto in scadenza ${internalUrgency}] ${contract.client.name}`,
+      html,
+    });
+  } catch {
+    // non bloccare per il fallimento dell'email interna
+  }
+
+  return clientOk ? { ok: true } : { ok: false, error: clientError };
+}

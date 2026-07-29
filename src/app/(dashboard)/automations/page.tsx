@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 import { AutomationToggle } from "./AutomationToggle";
-import { Bell, CalendarCheck, FileBarChart2, RefreshCw, ShieldAlert, Zap } from "lucide-react";
+import { Bell, CalendarCheck, Clock, FileBarChart2, Mail, RefreshCw, ShieldAlert, Zap } from "lucide-react";
 import { AutomationConfigInput } from "./AutomationConfigInput";
 
 type AutomationDef = {
@@ -43,6 +43,24 @@ const AUTOMATIONS: AutomationDef[] = [
     title: "Creazione fatture ricorrenti",
     desc: "Genera automaticamente le fatture mensili per tutti i contratti ricorrenti attivi il giorno di fatturazione configurato.",
     schedule: "Ogni giorno alle 07:00 UTC",
+    category: "contratti",
+    implemented: true,
+  },
+  {
+    type: "CONTRACT_WELCOME",
+    icon: <Mail className="w-4 h-4" />,
+    title: "Email nuovo contratto",
+    desc: "Quando crei un contratto, invia un'email esplicativa al cliente (durata, servizio, importo, nostri contatti) e una di notifica interna.",
+    schedule: "Immediato, alla creazione",
+    category: "contratti",
+    implemented: true,
+  },
+  {
+    type: "CONTRACT_EXPIRING",
+    icon: <Clock className="w-4 h-4" />,
+    title: "Promemoria scadenza contratto",
+    desc: "Avvisa cliente e team a 30 e 7 giorni dalla scadenza, il giorno prima e il giorno stesso. Invita il cliente a scrivere in amministrazione o al proprio tutor.",
+    schedule: "Ogni giorno alle 08:15 UTC",
     category: "contratti",
     implemented: true,
   },

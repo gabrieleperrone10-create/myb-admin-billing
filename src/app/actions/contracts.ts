@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { sendContractCreatedEmails } from "./email";
 
 export async function createContract(formData: FormData) {
   const type          = formData.get("type") as "RECURRING" | "ONE_SHOT" | "INSTALLMENT";
@@ -68,6 +69,15 @@ export async function createContract(formData: FormData) {
         lineItems:  [{ description: `Acconto — ${product?.name ?? "Servizio"}`, quantity: 1, unitPrice: amt, total: amt }],
       },
     });
+  }
+
+  try {
+    const automation = await prisma.automation.findUnique({ where: { type: "CONTRACT_WELCOME" } });
+    if (automation?.active) {
+      await sendContractCreatedEmails(contract.id);
+    }
+  } catch (e) {
+    console.error("Invio email nuovo contratto fallito", e);
   }
 
   revalidatePath("/contracts");
