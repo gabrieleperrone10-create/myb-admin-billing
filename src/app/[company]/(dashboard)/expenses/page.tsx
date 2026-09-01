@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
+import type { CompanyDb } from "@/lib/db";
 import { formatCurrency } from "@/lib/utils";
 import { EXPENSE_CATEGORY_CFG } from "@/lib/expenses";
 import { ExpenseCategory } from "@prisma/client";
@@ -7,7 +8,7 @@ import { Plus, ChevronRight } from "lucide-react";
 
 const CATEGORIES = Object.keys(EXPENSE_CATEGORY_CFG) as ExpenseCategory[];
 
-async function getData(category?: string, from?: string, to?: string) {
+async function getData(db: CompanyDb, category?: string, from?: string, to?: string) {
   const where: Record<string, unknown> = {};
 
   if (category && CATEGORIES.includes(category as ExpenseCategory)) {
@@ -23,11 +24,11 @@ async function getData(category?: string, from?: string, to?: string) {
   }
 
   const [expenses, totByCategory] = await Promise.all([
-    prisma.expense.findMany({
+    db.expense.findMany({
       where,
       orderBy: { date: "desc" },
     }),
-    prisma.expense.groupBy({
+    db.expense.groupBy({
       by: ["category"],
       _sum: { amount: true },
       _count: true,
@@ -38,12 +39,15 @@ async function getData(category?: string, from?: string, to?: string) {
 }
 
 export default async function ExpensesPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ company: string }>;
   searchParams: Promise<{ category?: string; from?: string; to?: string }>;
 }) {
-  const sp   = await searchParams;
-  const data = await getData(sp.category, sp.from, sp.to);
+  const [{ company: slug }, sp] = await Promise.all([params, searchParams]);
+  const { db } = await requireCompany(slug);
+  const data = await getData(db, sp.category, sp.from, sp.to);
 
   const grandTotal = data.expenses.reduce((s, e) => s + e.amount, 0);
 
@@ -64,7 +68,7 @@ export default async function ExpensesPage({
           </p>
         </div>
         <Link
-          href="/expenses/new"
+          href={`/${slug}/expenses/new`}
           className="inline-flex items-center gap-1.5 px-3 rounded-[var(--r-md)] text-[13px] font-semibold"
           style={{ backgroundColor: "var(--fg)", color: "#ffffff", height: 40, minHeight: "unset" }}
         >
@@ -77,7 +81,7 @@ export default async function ExpensesPage({
       {/* Category pills — scrollable on mobile */}
       <div className="flex gap-1.5 flex-nowrap overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
         <Link
-          href="/expenses"
+          href={`/${slug}/expenses`}
           className="px-3 py-1.5 rounded-full text-[12px] font-medium border whitespace-nowrap transition-colors shrink-0"
           style={{
             backgroundColor: !sp.category ? "var(--fg)" : "var(--surface)",
@@ -96,7 +100,7 @@ export default async function ExpensesPage({
             return (
               <Link
                 key={category}
-                href={`/expenses?category=${category}${sp.from ? `&from=${sp.from}` : ""}${sp.to ? `&to=${sp.to}` : ""}`}
+                href={`/${slug}/expenses?category=${category}${sp.from ? `&from=${sp.from}` : ""}${sp.to ? `&to=${sp.to}` : ""}`}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium border whitespace-nowrap transition-colors shrink-0"
                 style={{
                   backgroundColor: active ? cfg.color : "var(--surface)",
@@ -116,7 +120,7 @@ export default async function ExpensesPage({
       {data.expenses.length === 0 ? (
         <div className="text-center py-12 text-[13px]" style={{ color: "var(--fg-3)" }}>
           Nessuna spesa trovata.{" "}
-          <Link href="/expenses/new" style={{ color: "var(--info)" }}>Aggiungi la prima →</Link>
+          <Link href={`/${slug}/expenses/new`} style={{ color: "var(--info)" }}>Aggiungi la prima →</Link>
         </div>
       ) : (
         <>
@@ -127,7 +131,7 @@ export default async function ExpensesPage({
               return (
                 <Link
                   key={exp.id}
-                  href={`/expenses/${exp.id}`}
+                  href={`/${slug}/expenses/${exp.id}`}
                   className="mobile-card flex items-center gap-3"
                   style={{ minHeight: "unset" }}
                 >
@@ -180,7 +184,7 @@ export default async function ExpensesPage({
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <Link href={`/expenses/${exp.id}`} className="text-[13px] font-medium hover:underline" style={{ color: "var(--fg)", minHeight: "unset" }}>
+                        <Link href={`/${slug}/expenses/${exp.id}`} className="text-[13px] font-medium hover:underline" style={{ color: "var(--fg)", minHeight: "unset" }}>
                           {exp.description}
                         </Link>
                       </td>
@@ -199,7 +203,7 @@ export default async function ExpensesPage({
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Link href={`/expenses/${exp.id}`} className="text-[11px] opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "var(--info)", minHeight: "unset" }}>
+                        <Link href={`/${slug}/expenses/${exp.id}`} className="text-[11px] opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "var(--info)", minHeight: "unset" }}>
                           Modifica →
                         </Link>
                       </td>

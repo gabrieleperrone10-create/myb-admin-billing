@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input, Select, Textarea } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { createManualCreditNote } from "@/app/actions/creditNotes";
+import { useCompanySlug } from "@/lib/useCompany";
 
 interface Client {
   id: string;
@@ -39,6 +40,7 @@ const emptyClient = {
 };
 
 export default function CreditNoteForm({ clients }: Props) {
+  const slug = useCompanySlug();
   const [pending, startTransition] = useTransition();
   const [fields, setFields] = useState(emptyClient);
   const router = useRouter();
@@ -74,7 +76,7 @@ export default function CreditNoteForm({ clients }: Props) {
   };
 
   const action = (formData: FormData) => {
-    startTransition(async () => { await createManualCreditNote(formData); });
+    startTransition(async () => { await createManualCreditNote(slug, formData); });
   };
 
   return (

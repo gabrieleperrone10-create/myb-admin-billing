@@ -1,14 +1,15 @@
 import { notFound } from "next/navigation";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import ExpenseForm from "../new/ExpenseForm";
 
 export default async function ExpenseDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ company: string; id: string }>;
 }) {
-  const { id } = await params;
-  const expense = await prisma.expense.findUnique({ where: { id } });
+  const { company: slug, id } = await params;
+  const { db } = await requireCompany(slug);
+  const expense = await db.expense.findUnique({ where: { id } });
   if (!expense) notFound();
 
   return (

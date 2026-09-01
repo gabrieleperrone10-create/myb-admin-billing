@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { createCreditNoteFromInvoice } from "@/app/actions/creditNotes";
+import { useCompanySlug } from "@/lib/useCompany";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/FormField";
 import { FileMinus, X } from "lucide-react";
@@ -10,12 +11,13 @@ import { formatCurrency } from "@/lib/utils";
 interface Props { invoiceId: string; invoiceNumber: string; amount: number }
 
 export default function CreditNoteModal({ invoiceId, invoiceNumber, amount }: Props) {
+  const slug = useCompanySlug();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const action = (formData: FormData) => {
     startTransition(async () => {
-      await createCreditNoteFromInvoice(invoiceId, formData);
+      await createCreditNoteFromInvoice(slug, invoiceId, formData);
     });
   };
 

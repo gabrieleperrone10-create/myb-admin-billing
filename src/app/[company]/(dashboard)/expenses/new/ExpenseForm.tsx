@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input, Select, Textarea } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { createExpense, updateExpense, deleteExpense } from "@/app/actions/expenses";
+import { useCompanySlug } from "@/lib/useCompany";
 import { EXPENSE_CATEGORY_OPTIONS } from "@/lib/expenses";
 
 interface ExistingExpense {
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export default function ExpenseForm({ existing }: Props) {
+  const slug = useCompanySlug();
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -30,9 +32,9 @@ export default function ExpenseForm({ existing }: Props) {
     const fd = new FormData(e.currentTarget);
     startTransition(async () => {
       if (existing) {
-        await updateExpense(existing.id, fd);
+        await updateExpense(slug, existing.id, fd);
       } else {
-        await createExpense(fd);
+        await createExpense(slug, fd);
       }
     });
   };
@@ -41,7 +43,7 @@ export default function ExpenseForm({ existing }: Props) {
     if (!existing) return;
     if (!confirm("Eliminare questa spesa?")) return;
     startTransition(async () => {
-      await deleteExpense(existing.id);
+      await deleteExpense(slug, existing.id);
     });
   };
 

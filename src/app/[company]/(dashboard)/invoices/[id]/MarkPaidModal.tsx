@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { markInvoicePaid } from "@/app/actions/invoices";
+import { useCompanySlug } from "@/lib/useCompany";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/FormField";
 import { CheckCircle, X } from "lucide-react";
@@ -16,13 +17,14 @@ const METHOD_OPTIONS = [
 interface Props { invoiceId: string; amount: number }
 
 export default function MarkPaidModal({ invoiceId, amount }: Props) {
+  const slug = useCompanySlug();
   const [open, setOpen] = useState(false);
   const [method, setMethod] = useState("BANK_TRANSFER");
   const [pending, startTransition] = useTransition();
 
   const action = (formData: FormData) => {
     startTransition(async () => {
-      await markInvoicePaid(invoiceId, formData);
+      await markInvoicePaid(slug, invoiceId, formData);
       setOpen(false);
     });
   };

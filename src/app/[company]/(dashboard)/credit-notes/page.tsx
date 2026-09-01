@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { FileMinus, Plus, ChevronRight } from "lucide-react";
@@ -16,15 +16,18 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 ];
 
 export default async function CreditNotesPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ company: string }>;
   searchParams: Promise<{ q?: string; status?: string }>;
 }) {
-  const sp     = await searchParams;
+  const [{ company: slug }, sp] = await Promise.all([params, searchParams]);
+  const { db } = await requireCompany(slug);
   const q      = sp.q ?? "";
   const status = sp.status ?? "";
 
-  const creditNotes = await prisma.creditNote.findMany({
+  const creditNotes = await db.creditNote.findMany({
     where: {
       ...(status ? { status: status as never } : {}),
       ...(q ? { OR: [
@@ -45,7 +48,7 @@ export default async function CreditNotesPage({
           <p className="text-[12px] text-fg-3 mt-0.5">{creditNotes.length} risultati</p>
         </div>
         <Link
-          href="/credit-notes/new"
+          href={`/${slug}/credit-notes/new`}
           className="inline-flex items-center gap-1.5 px-3 bg-fg text-white text-[13px] font-semibold rounded-[var(--r-md)] transition-colors shrink-0"
           style={{ height: 40, minHeight: "unset" }}
         >
@@ -64,7 +67,7 @@ export default async function CreditNotesPage({
           {STATUS_OPTIONS.map(opt => (
             <Link
               key={opt.value}
-              href={`/credit-notes?${new URLSearchParams({ ...(q ? { q } : {}), ...(opt.value ? { status: opt.value } : {}) }).toString()}`}
+              href={`/${slug}/credit-notes?${new URLSearchParams({ ...(q ? { q } : {}), ...(opt.value ? { status: opt.value } : {}) }).toString()}`}
               className="px-3 py-1.5 rounded-full text-[12px] font-medium border whitespace-nowrap transition-colors"
               style={{
                 backgroundColor: status === opt.value ? "var(--fg)" : "var(--surface)",
@@ -85,7 +88,7 @@ export default async function CreditNotesPage({
           title="Nessuna nota di credito trovata"
           subtitle={q || status ? "Prova a modificare i filtri" : "Genera la tua prima nota di credito"}
           action={!q && !status ? (
-            <Link href="/credit-notes/new" className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-fg text-white text-[13px] font-semibold rounded-[var(--r-md)]" style={{ minHeight: "unset" }}>
+            <Link href={`/${slug}/credit-notes/new`} className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-fg text-white text-[13px] font-semibold rounded-[var(--r-md)]" style={{ minHeight: "unset" }}>
               <Plus className="w-4 h-4" strokeWidth={2.5} />Nuova nota di credito
             </Link>
           ) : undefined}
@@ -97,7 +100,7 @@ export default async function CreditNotesPage({
             {creditNotes.map((cn) => (
               <Link
                 key={cn.id}
-                href={`/credit-notes/${cn.id}`}
+                href={`/${slug}/credit-notes/${cn.id}`}
                 className="mobile-card flex items-center gap-3"
                 style={{ minHeight: "unset" }}
               >
@@ -138,13 +141,13 @@ export default async function CreditNotesPage({
               <tbody>
                 {creditNotes.map((cn) => (
                   <tr key={cn.id} className="border-b border-subtle hover:bg-subtle/60 transition-colors">
-                    <td className="px-4 py-2.5"><Link href={`/credit-notes/${cn.id}`} className="font-mono text-[11px] text-info hover:underline">{cn.number}</Link></td>
+                    <td className="px-4 py-2.5"><Link href={`/${slug}/credit-notes/${cn.id}`} className="font-mono text-[11px] text-info hover:underline">{cn.number}</Link></td>
                     <td className="px-4 py-2.5 text-[13px] font-medium text-fg">{cn.clientName}</td>
                     <td className="px-4 py-2.5 font-mono text-[12px] text-fg-2">{cn.originalInvoiceNumber}</td>
                     <td className="px-4 py-2.5 text-right"><span className="font-mono text-[13px] font-medium tabular-nums" style={{ color: "var(--danger)" }}>-{formatCurrency(cn.amount)}</span></td>
                     <td className="px-4 py-2.5 font-mono text-[12px] text-fg-2">{formatDate(cn.issueDate)}</td>
                     <td className="px-4 py-2.5"><CreditNoteStatusBadge status={cn.status as CreditNoteStatus} /></td>
-                    <td className="px-4 py-2.5 text-right"><Link href={`/credit-notes/${cn.id}`} className="text-[12px] font-medium text-info hover:underline">Dettagli</Link></td>
+                    <td className="px-4 py-2.5 text-right"><Link href={`/${slug}/credit-notes/${cn.id}`} className="text-[12px] font-medium text-info hover:underline">Dettagli</Link></td>
                   </tr>
                 ))}
               </tbody>

@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { notFound } from "next/navigation";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { ArrowLeft, CheckCircle, Send, XCircle, Download, FileMinus } from "lucide-react";
@@ -23,16 +23,14 @@ const STATUS_LABEL: Record<string, string> = {
   PAID: "Pagata", SENT: "Inviata", OVERDUE: "Scaduta", DRAFT: "Bozza", CANCELLED: "Annullata",
 };
 
-export default async function InvoiceDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function InvoiceDetailPage({ params }: { params: Promise<{ company: string; id: string }> }) {
+  const { company: slug, id } = await params;
+  const { db, company } = await requireCompany(slug);
 
-  const [invoice, company] = await Promise.all([
-    prisma.invoice.findUnique({
-      where: { id },
-      include: { client: true, contract: { include: { product: true } }, payment: true, creditNotes: true },
-    }),
-    prisma.companySettings.upsert({ where: { id: "singleton" }, update: {}, create: { id: "singleton" } }),
-  ]);
+  const invoice = await db.invoice.findUnique({
+    where: { id },
+    include: { client: true, contract: { include: { product: true } }, payment: true, creditNotes: true },
+  });
 
   if (!invoice) notFound();
 
@@ -44,14 +42,14 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
     total:       Number(li.total ?? li.price ?? 0),
   }));
 
-  const markSent = updateInvoiceStatus.bind(null, id, "SENT");
-  const markCancelled = updateInvoiceStatus.bind(null, id, "CANCELLED");
-  const deleteAction = deleteInvoice.bind(null, id);
+  const markSent = updateInvoiceStatus.bind(null, slug, id, "SENT");
+  const markCancelled = updateInvoiceStatus.bind(null, slug, id, "CANCELLED");
+  const deleteAction = deleteInvoice.bind(null, slug, id);
 
   return (
     <div className="max-w-3xl space-y-6">
       <div className="flex items-center gap-4">
-        <Link href="/invoices" className="text-gray-400 hover:text-gray-600"><ArrowLeft className="w-5 h-5" /></Link>
+        <Link href={`/${slug}/invoices`} className="text-gray-400 hover:text-gray-600"><ArrowLeft className="w-5 h-5" /></Link>
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-900">{invoice.number}</h1>
@@ -65,7 +63,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
         {/* Azioni */}
         <div className="flex flex-wrap gap-2">
           <a
-            href={`/api/invoices/${id}/pdf`}
+            href={`/api/invoices/${id}/pdf?company=${slug}`}
             target="_blank"
             className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50"
           >
@@ -81,8 +79,8 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             amount={invoice.amount}
             dueDate={invoice.dueDate}
             iban={company.iban}
-            companyName={company.name || "Market Your Business"}
-            replyEmail={process.env.EMAIL_REPLY_TO || "amministrazione@marketyourbusiness.it"}
+            companyName={company.name}
+            replyEmail={company.emailReplyTo ?? process.env.EMAIL_REPLY_TO ?? ""}
           />
 
           {invoice.status === "DRAFT" && (
@@ -105,8 +103,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
           {invoice.status !== "DRAFT" && invoice.status !== "CANCELLED" && (
             <CreditNoteModal invoiceId={id} invoiceNumber={invoice.number} amount={invoice.amount} />
           )}
-          {(invoice.status === "DRAFT" || invoice.status === "CANCELLED" ||
-            invoice.number === "MYB-2026-0014" || invoice.number === "MYB-2026-0015") && (
+          {(invoice.status === "DRAFT" || invoice.status === "CANCELLED") && (
             <DeleteConfirmButton
               action={deleteAction}
               message="Eliminare definitivamente questa fattura?"
@@ -198,7 +195,7 @@ export default async function InvoiceDetailPage({ params }: { params: Promise<{ 
             {invoice.creditNotes.map((cn) => (
               <Link
                 key={cn.id}
-                href={`/credit-notes/${cn.id}`}
+                href={`/${slug}/credit-notes/${cn.id}`}
                 className="flex items-center justify-between py-2.5 hover:bg-gray-50 -mx-2 px-2 rounded-lg"
               >
                 <div className="flex items-center gap-2.5">

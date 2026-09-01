@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { CreditCard } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
@@ -22,15 +22,18 @@ const METHOD_OPTIONS = [
 ];
 
 export default async function PaymentsPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ company: string }>;
   searchParams: Promise<{ q?: string; method?: string }>;
 }) {
-  const sp     = await searchParams;
+  const [{ company: slug }, sp] = await Promise.all([params, searchParams]);
+  const { db } = await requireCompany(slug);
   const q      = sp.q ?? "";
   const method = sp.method ?? "";
 
-  const payments = await prisma.payment.findMany({
+  const payments = await db.payment.findMany({
     where: {
       ...(method ? { method: method as never } : {}),
       ...(q ? { OR: [
@@ -68,7 +71,7 @@ export default async function PaymentsPage({
           {METHOD_OPTIONS.map(opt => (
             <Link
               key={opt.value}
-              href={`/payments?${new URLSearchParams({ ...(q ? { q } : {}), ...(opt.value ? { method: opt.value } : {}) }).toString()}`}
+              href={`/${slug}/payments?${new URLSearchParams({ ...(q ? { q } : {}), ...(opt.value ? { method: opt.value } : {}) }).toString()}`}
               className="px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors"
               style={{
                 backgroundColor: method === opt.value ? "var(--fg)" : "transparent",

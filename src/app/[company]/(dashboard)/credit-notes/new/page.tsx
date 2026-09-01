@@ -1,9 +1,11 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import CreditNoteForm from "./CreditNoteForm";
 
-export default async function NewCreditNotePage() {
-  const clients = await prisma.client.findMany({
+export default async function NewCreditNotePage({ params }: { params: Promise<{ company: string }> }) {
+  const { company: slug } = await params;
+  const { db } = await requireCompany(slug);
+  const clients = await db.client.findMany({
     orderBy: { name: "asc" },
     select: {
       id: true, name: true, company: true, email: true,

@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { notFound } from "next/navigation";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { ArrowLeft, XCircle, Download, FileText } from "lucide-react";
@@ -17,10 +17,11 @@ const STATUS_LABEL: Record<string, string> = {
   ISSUED: "Emessa", SENT: "Inviata", CANCELLED: "Annullata",
 };
 
-export default async function CreditNoteDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function CreditNoteDetailPage({ params }: { params: Promise<{ company: string; id: string }> }) {
+  const { company: slug, id } = await params;
+  const { db } = await requireCompany(slug);
 
-  const creditNote = await prisma.creditNote.findUnique({ where: { id } });
+  const creditNote = await db.creditNote.findUnique({ where: { id } });
   if (!creditNote) notFound();
 
   const rawItems = (creditNote.lineItems ?? []) as Record<string, unknown>[];
@@ -31,13 +32,13 @@ export default async function CreditNoteDetailPage({ params }: { params: Promise
     total:       Number(li.total ?? 0),
   }));
 
-  const markCancelled = updateCreditNoteStatus.bind(null, id, "CANCELLED");
-  const deleteAction = deleteCreditNote.bind(null, id);
+  const markCancelled = updateCreditNoteStatus.bind(null, slug, id, "CANCELLED");
+  const deleteAction = deleteCreditNote.bind(null, slug, id);
 
   return (
     <div className="max-w-3xl space-y-6">
       <div className="flex items-center gap-4">
-        <Link href="/credit-notes" className="text-gray-400 hover:text-gray-600"><ArrowLeft className="w-5 h-5" /></Link>
+        <Link href={`/${slug}/credit-notes`} className="text-gray-400 hover:text-gray-600"><ArrowLeft className="w-5 h-5" /></Link>
         <div className="flex-1">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold text-gray-900">{creditNote.number}</h1>
@@ -51,7 +52,7 @@ export default async function CreditNoteDetailPage({ params }: { params: Promise
         {/* Azioni */}
         <div className="flex flex-wrap gap-2">
           <a
-            href={`/api/credit-notes/${id}/pdf`}
+            href={`/api/credit-notes/${id}/pdf?company=${slug}`}
             target="_blank"
             className="flex items-center gap-1.5 px-3 py-2 border border-gray-300 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50"
           >
@@ -85,7 +86,7 @@ export default async function CreditNoteDetailPage({ params }: { params: Promise
             {creditNote.originalInvoiceDate && ` del ${formatDate(creditNote.originalInvoiceDate)}`}
           </p>
           {creditNote.invoiceId ? (
-            <Link href={`/invoices/${creditNote.invoiceId}`} className="text-xs text-blue-600 hover:underline mt-0.5 inline-block">
+            <Link href={`/${slug}/invoices/${creditNote.invoiceId}`} className="text-xs text-blue-600 hover:underline mt-0.5 inline-block">
               Vai alla fattura nel gestionale
             </Link>
           ) : (

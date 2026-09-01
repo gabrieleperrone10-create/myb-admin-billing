@@ -1,11 +1,13 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import InvoiceForm from "./InvoiceForm";
 
-export default async function NewInvoicePage() {
+export default async function NewInvoicePage({ params }: { params: Promise<{ company: string }> }) {
+  const { company: slug } = await params;
+  const { db } = await requireCompany(slug);
   const [clients, contracts] = await Promise.all([
-    prisma.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, company: true } }),
-    prisma.contract.findMany({
+    db.client.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, company: true } }),
+    db.contract.findMany({
       where: { active: true },
       include: { client: true, product: true },
       orderBy: { createdAt: "desc" },

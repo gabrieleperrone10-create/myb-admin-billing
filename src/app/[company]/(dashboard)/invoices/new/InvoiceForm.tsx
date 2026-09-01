@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input, Select, Textarea } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { createInvoice } from "@/app/actions/invoices";
+import { useCompanySlug } from "@/lib/useCompany";
 import { formatCurrency } from "@/lib/utils";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -24,6 +25,7 @@ const defaultDueDate = () => {
 };
 
 export default function InvoiceForm({ clients, contracts }: Props) {
+  const slug = useCompanySlug();
   const [pending, startTransition] = useTransition();
   const [selectedClientId, setSelectedClientId] = useState("");
   const [lineItems, setLineItems] = useState<LineItem[]>([
@@ -60,7 +62,7 @@ export default function InvoiceForm({ clients, contracts }: Props) {
 
   const action = (formData: FormData) => {
     formData.set("lineItems", JSON.stringify(lineItems));
-    startTransition(async () => { await createInvoice(formData); });
+    startTransition(async () => { await createInvoice(slug, formData); });
   };
 
   return (

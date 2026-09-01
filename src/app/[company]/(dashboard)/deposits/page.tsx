@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Wallet } from "lucide-react";
 import { DepositStatusBadge, Badge, type DepositStatus } from "@/components/ui/Badge";
@@ -22,15 +22,18 @@ const STATUS_OPTIONS = [
 ];
 
 export default async function DepositsPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ company: string }>;
   searchParams: Promise<{ q?: string; status?: string }>;
 }) {
-  const sp     = await searchParams;
+  const [{ company: slug }, sp] = await Promise.all([params, searchParams]);
+  const { db } = await requireCompany(slug);
   const q      = sp.q ?? "";
   const status = sp.status ?? "";
 
-  const deposits = await prisma.deposit.findMany({
+  const deposits = await db.deposit.findMany({
     where: {
       ...(status ? { status: status as never } : {}),
       ...(q ? { OR: [
@@ -57,7 +60,7 @@ export default async function DepositsPage({
           {STATUS_OPTIONS.map(opt => (
             <Link
               key={opt.value}
-              href={`/deposits?${new URLSearchParams({ ...(q ? { q } : {}), ...(opt.value ? { status: opt.value } : {}) }).toString()}`}
+              href={`/${slug}/deposits?${new URLSearchParams({ ...(q ? { q } : {}), ...(opt.value ? { status: opt.value } : {}) }).toString()}`}
               className="px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors"
               style={{
                 backgroundColor: status === opt.value ? "var(--fg)" : "transparent",

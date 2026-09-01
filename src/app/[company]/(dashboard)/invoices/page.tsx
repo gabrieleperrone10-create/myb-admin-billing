@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { FileText, Plus, ChevronRight } from "lucide-react";
@@ -18,15 +18,18 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 ];
 
 export default async function InvoicesPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ company: string }>;
   searchParams: Promise<{ q?: string; status?: string }>;
 }) {
-  const sp     = await searchParams;
+  const [{ company: slug }, sp] = await Promise.all([params, searchParams]);
+  const { db } = await requireCompany(slug);
   const q      = sp.q ?? "";
   const status = sp.status ?? "";
 
-  const invoices = await prisma.invoice.findMany({
+  const invoices = await db.invoice.findMany({
     where: {
       ...(status ? { status: status as never } : {}),
       ...(q ? { OR: [
@@ -47,7 +50,7 @@ export default async function InvoicesPage({
           <p className="text-[12px] text-fg-3 mt-0.5">{invoices.length} risultati</p>
         </div>
         <Link
-          href="/invoices/new"
+          href={`/${slug}/invoices/new`}
           className="inline-flex items-center gap-1.5 px-3 bg-fg text-white text-[13px] font-semibold rounded-[var(--r-md)] transition-colors shrink-0"
           style={{ height: 40, minHeight: "unset" }}
         >
@@ -66,7 +69,7 @@ export default async function InvoicesPage({
           {STATUS_OPTIONS.map(opt => (
             <Link
               key={opt.value}
-              href={`/invoices?${new URLSearchParams({ ...(q ? { q } : {}), ...(opt.value ? { status: opt.value } : {}) }).toString()}`}
+              href={`/${slug}/invoices?${new URLSearchParams({ ...(q ? { q } : {}), ...(opt.value ? { status: opt.value } : {}) }).toString()}`}
               className="px-3 py-1.5 rounded-full text-[12px] font-medium border whitespace-nowrap transition-colors"
               style={{
                 backgroundColor: status === opt.value ? "var(--fg)" : "var(--surface)",
@@ -87,7 +90,7 @@ export default async function InvoicesPage({
           title="Nessuna fattura trovata"
           subtitle={q || status ? "Prova a modificare i filtri" : "Crea la tua prima fattura"}
           action={!q && !status ? (
-            <Link href="/invoices/new" className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-fg text-white text-[13px] font-semibold rounded-[var(--r-md)]" style={{ minHeight: "unset" }}>
+            <Link href={`/${slug}/invoices/new`} className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-fg text-white text-[13px] font-semibold rounded-[var(--r-md)]" style={{ minHeight: "unset" }}>
               <Plus className="w-4 h-4" strokeWidth={2.5} />Nuova Fattura
             </Link>
           ) : undefined}
@@ -99,7 +102,7 @@ export default async function InvoicesPage({
             {invoices.map((inv) => (
               <Link
                 key={inv.id}
-                href={`/invoices/${inv.id}`}
+                href={`/${slug}/invoices/${inv.id}`}
                 className="mobile-card flex items-center gap-3"
                 style={{ minHeight: "unset" }}
               >
@@ -140,13 +143,13 @@ export default async function InvoicesPage({
               <tbody>
                 {invoices.map((inv) => (
                   <tr key={inv.id} className="border-b border-subtle hover:bg-subtle/60 transition-colors">
-                    <td className="px-4 py-2.5"><Link href={`/invoices/${inv.id}`} className="font-mono text-[11px] text-info hover:underline">{inv.number}</Link></td>
+                    <td className="px-4 py-2.5"><Link href={`/${slug}/invoices/${inv.id}`} className="font-mono text-[11px] text-info hover:underline">{inv.number}</Link></td>
                     <td className="px-4 py-2.5 text-[13px] font-medium text-fg">{inv.client.name}</td>
                     <td className="px-4 py-2.5 text-right"><span className="font-mono text-[13px] font-medium text-fg tabular-nums">{formatCurrency(inv.amount)}</span></td>
                     <td className="px-4 py-2.5 font-mono text-[12px] text-fg-2">{formatDate(inv.issueDate)}</td>
                     <td className="px-4 py-2.5 font-mono text-[12px] text-fg-2">{formatDate(inv.dueDate)}</td>
                     <td className="px-4 py-2.5"><InvoiceStatusBadge status={inv.status as InvoiceStatus} /></td>
-                    <td className="px-4 py-2.5 text-right"><Link href={`/invoices/${inv.id}`} className="text-[12px] font-medium text-info hover:underline">Dettagli</Link></td>
+                    <td className="px-4 py-2.5 text-right"><Link href={`/${slug}/invoices/${inv.id}`} className="text-[12px] font-medium text-info hover:underline">Dettagli</Link></td>
                   </tr>
                 ))}
               </tbody>
