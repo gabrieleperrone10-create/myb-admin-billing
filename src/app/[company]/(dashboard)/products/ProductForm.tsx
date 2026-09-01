@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input, Select, Textarea } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { createProduct, updateProduct } from "@/app/actions/products";
+import { useCompanySlug } from "@/lib/useCompany";
 import type { Product } from "@prisma/client";
 
 const TYPE_OPTIONS = [
@@ -17,13 +18,14 @@ const TYPE_OPTIONS = [
 interface Props { product?: Product }
 
 export default function ProductForm({ product }: Props) {
+  const slug = useCompanySlug();
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
   const action = (formData: FormData) => {
     startTransition(async () => {
-      if (product) await updateProduct(product.id, formData);
-      else await createProduct(formData);
+      if (product) await updateProduct(slug, product.id, formData);
+      else await createProduct(slug, formData);
     });
   };
 

@@ -1,13 +1,14 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
+import type { CompanyDb } from "@/lib/db";
 import Link from "next/link";
 import { Users, Plus, ChevronRight, FileCheck, FileText } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SearchInput } from "@/components/ui/SearchInput";
 import { Suspense } from "react";
 
-async function ClientsList({ q }: { q: string }) {
-  const clients = await prisma.client.findMany({
+async function ClientsList({ db, slug, q }: { db: CompanyDb; slug: string; q: string }) {
+  const clients = await db.client.findMany({
     where: q ? {
       OR: [
         { name:    { contains: q, mode: "insensitive" } },
@@ -26,7 +27,7 @@ async function ClientsList({ q }: { q: string }) {
         title="Nessun cliente trovato"
         subtitle={q ? `Nessun risultato per "${q}"` : "Aggiungi il tuo primo cliente"}
         action={!q ? (
-          <Link href="/clients/new" className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-fg text-white text-[13px] font-semibold rounded-[var(--r-md)]" style={{ minHeight: "unset" }}>
+          <Link href={`/${slug}/clients/new`} className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-fg text-white text-[13px] font-semibold rounded-[var(--r-md)]" style={{ minHeight: "unset" }}>
             <Plus className="w-4 h-4" strokeWidth={2.5} />Nuovo Cliente
           </Link>
         ) : undefined}
@@ -41,7 +42,7 @@ async function ClientsList({ q }: { q: string }) {
         {clients.map((c) => (
           <Link
             key={c.id}
-            href={`/clients/${c.id}`}
+            href={`/${slug}/clients/${c.id}`}
             className="mobile-card flex items-center gap-3"
             style={{ minHeight: "unset" }}
           >
@@ -95,7 +96,7 @@ async function ClientsList({ q }: { q: string }) {
                 <td className="px-4 py-2.5 font-mono text-[12px] text-fg-2 tabular-nums">{c._count.contracts}</td>
                 <td className="px-4 py-2.5 font-mono text-[12px] text-fg-2 tabular-nums">{c._count.invoices}</td>
                 <td className="px-4 py-2.5 text-right">
-                  <Link href={`/clients/${c.id}`} className="text-[12px] font-medium text-info hover:underline" style={{ minHeight: "unset" }}>Dettagli</Link>
+                  <Link href={`/${slug}/clients/${c.id}`} className="text-[12px] font-medium text-info hover:underline" style={{ minHeight: "unset" }}>Dettagli</Link>
                 </td>
               </tr>
             ))}
@@ -107,11 +108,14 @@ async function ClientsList({ q }: { q: string }) {
 }
 
 export default async function ClientsPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ company: string }>;
   searchParams: Promise<{ q?: string }>;
 }) {
-  const sp = await searchParams;
+  const [{ company: slug }, sp] = await Promise.all([params, searchParams]);
+  const { db } = await requireCompany(slug);
   const q  = sp.q ?? "";
 
   return (
@@ -119,7 +123,7 @@ export default async function ClientsPage({
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-[22px] md:text-[24px] font-bold text-fg" style={{ letterSpacing: "-0.02em" }}>Clienti</h1>
         <Link
-          href="/clients/new"
+          href={`/${slug}/clients/new`}
           className="inline-flex items-center gap-1.5 px-3 bg-fg text-white text-[13px] font-semibold rounded-[var(--r-md)] transition-colors shrink-0"
           style={{ height: 40, minHeight: "unset" }}
         >
@@ -134,7 +138,7 @@ export default async function ClientsPage({
       </Suspense>
 
       <Suspense fallback={<div className="text-center py-10 text-[13px] text-fg-3">Caricamento…</div>}>
-        <ClientsList q={q} />
+        <ClientsList db={db} slug={slug} q={q} />
       </Suspense>
     </div>
   );

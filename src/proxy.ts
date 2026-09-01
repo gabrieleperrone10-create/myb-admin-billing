@@ -19,12 +19,6 @@ export default clerkMiddleware(async (auth, req) => {
     await auth.protect();
   }
 
-  // TODO fase 3: sostituire con il redirect all'azienda di default dell'utente,
-  // che richiede una query al DB e quindi va in src/app/page.tsx, non qui.
-  if (req.nextUrl.pathname === "/") {
-    return NextResponse.redirect(new URL("/dashboard", req.url));
-  }
-
   return NextResponse.next();
 });
 

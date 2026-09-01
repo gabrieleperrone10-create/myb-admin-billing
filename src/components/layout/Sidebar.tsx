@@ -13,6 +13,8 @@ import {
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
 import SearchModal from "./SearchModal";
+import { useCompanySlug } from "@/lib/useCompany";
+import { companyPath, stripCompany } from "@/lib/paths";
 import type { AppSection } from "@prisma/client";
 
 const SECTION_MAP: Record<string, AppSection> = {
@@ -67,8 +69,9 @@ const sistema = [
   { href: "/settings/roles", label: "Ruoli",      icon: Shield },
 ];
 
-export default function Sidebar({ allowedSections = [] }: { allowedSections?: AppSection[] }) {
-  const pathname = usePathname();
+export default function Sidebar({ allowedSections = [], companyName = "Azienda" }: { allowedSections?: AppSection[]; companyName?: string }) {
+  const slug = useCompanySlug();
+  const pathname = stripCompany(usePathname());
   const { user } = useUser();
   const allowed = new Set(allowedSections);
   const hasAny = allowedSections.length > 0;
@@ -131,10 +134,10 @@ export default function Sidebar({ allowedSections = [] }: { allowedSections?: Ap
           className="w-[22px] h-[22px] rounded-[5px] flex items-center justify-center shrink-0"
           style={{ backgroundColor: "var(--fg)" }}
         >
-          <span className="text-[11px] font-bold leading-none select-none" style={{ color: "var(--surface)" }}>M</span>
+          <span className="text-[11px] font-bold leading-none select-none" style={{ color: "var(--surface)" }}>{companyName[0]?.toUpperCase() ?? "A"}</span>
         </div>
         <span className="text-[13px] font-semibold truncate" style={{ color: "var(--fg)", letterSpacing: "-0.01em" }}>
-          Market Your Business
+          {companyName}
         </span>
       </div>
 
@@ -161,17 +164,17 @@ export default function Sidebar({ allowedSections = [] }: { allowedSections?: Ap
       <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4">
         {/* Dashboard solo */}
         <div>
-          <NavItem href="/dashboard" label="Dashboard" icon={LayoutDashboard} pathname={pathname} accentColor="var(--fg)" />
+          <NavItem href="/dashboard" label="Dashboard" icon={LayoutDashboard} pathname={pathname} accentColor="var(--fg)" slug={slug} />
         </div>
 
         {visibleAmm.length > 0 && (
-          <NavSection title="Amministrazione" sectionKey="amm" items={visibleAmm} pathname={pathname} accentColor="var(--info)" collapsed={!!collapsed["amm"]} onToggle={() => toggle("amm")} />
+          <NavSection title="Amministrazione" sectionKey="amm" items={visibleAmm} pathname={pathname} accentColor="var(--info)" collapsed={!!collapsed["amm"]} onToggle={() => toggle("amm")} slug={slug} />
         )}
         {visibleOp.length > 0 && (
-          <NavSection title="Operazioni" sectionKey="op" items={visibleOp} pathname={pathname} accentColor="#10b981" collapsed={!!collapsed["op"]} onToggle={() => toggle("op")} />
+          <NavSection title="Operazioni" sectionKey="op" items={visibleOp} pathname={pathname} accentColor="#10b981" collapsed={!!collapsed["op"]} onToggle={() => toggle("op")} slug={slug} />
         )}
         {visibleOrg.length > 0 && (
-          <NavSection title="Organizzazione" sectionKey="org" items={visibleOrg} pathname={pathname} accentColor="#8b5cf6" collapsed={!!collapsed["org"]} onToggle={() => toggle("org")} />
+          <NavSection title="Organizzazione" sectionKey="org" items={visibleOrg} pathname={pathname} accentColor="#8b5cf6" collapsed={!!collapsed["org"]} onToggle={() => toggle("org")} slug={slug} />
         )}
       </nav>
 
@@ -201,7 +204,7 @@ export default function Sidebar({ allowedSections = [] }: { allowedSections?: Ap
                   return (
                     <Link
                       key={href}
-                      href={href}
+                      href={companyPath(slug, href)}
                       className={cn("flex items-center gap-2.5 px-2.5 py-[6px] rounded-[var(--r-md)] text-[13px] transition-colors", active ? "font-medium" : "")}
                       style={{
                         backgroundColor: active ? "var(--subtle)" : "transparent",
@@ -226,7 +229,7 @@ export default function Sidebar({ allowedSections = [] }: { allowedSections?: Ap
 
         {/* User row */}
         <Link
-          href="/profile"
+          href={companyPath(slug, "/profile")}
           className="flex items-center gap-2.5 px-2.5 py-[6px] rounded-[var(--r-md)] transition-colors group"
           style={{ minHeight: "unset" }}
         >
@@ -256,15 +259,15 @@ export default function Sidebar({ allowedSections = [] }: { allowedSections?: Ap
 }
 
 function NavItem({
-  href, label, icon: Icon, pathname, accentColor,
+  href, label, icon: Icon, pathname, accentColor, slug,
 }: {
   href: string; label: string; icon: React.FC<{ className?: string; strokeWidth?: number }>;
-  pathname: string; accentColor: string;
+  pathname: string; accentColor: string; slug: string;
 }) {
   const active = pathname === href || pathname.startsWith(href + "/");
   return (
     <Link
-      href={href}
+      href={companyPath(slug, href)}
       aria-current={active ? "page" : undefined}
       className={cn("flex items-center gap-2.5 px-2.5 py-[6px] rounded-[var(--r-md)] text-[13px] transition-colors duration-100", active ? "font-medium" : "")}
       style={{
@@ -282,7 +285,7 @@ function NavItem({
 }
 
 function NavSection({
-  title, sectionKey, items, pathname, accentColor, collapsed, onToggle,
+  title, sectionKey, items, pathname, accentColor, collapsed, onToggle, slug,
 }: {
   title: string;
   sectionKey: string;
@@ -291,6 +294,7 @@ function NavSection({
   accentColor: string;
   collapsed: boolean;
   onToggle: () => void;
+  slug: string;
 }) {
   void sectionKey;
   return (
@@ -312,7 +316,7 @@ function NavSection({
       {!collapsed && (
         <div className="space-y-0.5 mt-0.5">
           {items.map(({ href, label, icon: Icon }) => (
-            <NavItem key={href} href={href} label={label} icon={Icon} pathname={pathname} accentColor={accentColor} />
+            <NavItem key={href} href={href} label={label} icon={Icon} pathname={pathname} accentColor={accentColor} slug={slug} />
           ))}
         </div>
       )}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input, Select, Textarea } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { createClient, updateClient } from "@/app/actions/clients";
+import { useCompanySlug } from "@/lib/useCompany";
 import type { Client } from "@prisma/client";
 
 const COUNTRIES = [
@@ -17,13 +18,14 @@ interface Props {
 }
 
 export default function ClientForm({ client }: Props) {
+  const slug = useCompanySlug();
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
   const action = (formData: FormData) => {
     startTransition(async () => {
-      if (client) await updateClient(client.id, formData);
-      else await createClient(formData);
+      if (client) await updateClient(slug, client.id, formData);
+      else await createClient(slug, formData);
     });
   };
 

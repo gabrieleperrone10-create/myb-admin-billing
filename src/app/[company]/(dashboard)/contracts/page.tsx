@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { FileCheck, Plus } from "lucide-react";
@@ -9,16 +9,19 @@ import { SearchInput } from "@/components/ui/SearchInput";
 import { Suspense } from "react";
 
 export default async function ContractsPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ company: string }>;
   searchParams: Promise<{ q?: string; active?: string; type?: string }>;
 }) {
-  const sp     = await searchParams;
+  const [{ company: slug }, sp] = await Promise.all([params, searchParams]);
+  const { db } = await requireCompany(slug);
   const q      = sp.q ?? "";
   const active = sp.active;
   const type   = sp.type ?? "";
 
-  const contracts = await prisma.contract.findMany({
+  const contracts = await db.contract.findMany({
     where: {
       ...(active === "1" ? { active: true } : active === "0" ? { active: false } : {}),
       ...(type ? { type: type as never } : {}),
@@ -33,7 +36,7 @@ export default async function ContractsPage({
 
   const filterLink = (extra: Record<string, string>) => {
     const p = new URLSearchParams({ ...(q ? { q } : {}), ...extra });
-    return `/contracts?${p.toString()}`;
+    return `/${slug}/contracts?${p.toString()}`;
   };
 
   return (
@@ -43,7 +46,7 @@ export default async function ContractsPage({
           <h1 className="text-[24px] font-semibold text-fg" style={{ letterSpacing: "-0.02em" }}>Contratti</h1>
           <p className="text-[13px] text-fg-3 mt-0.5">{contracts.length} risultati</p>
         </div>
-        <Link href="/contracts/new" className="inline-flex items-center gap-1.5 px-3 py-[7px] bg-fg text-white text-[13px] font-medium rounded-[var(--r-md)] hover:bg-fg/90 transition-colors shrink-0">
+        <Link href={`/${slug}/contracts/new`} className="inline-flex items-center gap-1.5 px-3 py-[7px] bg-fg text-white text-[13px] font-medium rounded-[var(--r-md)] hover:bg-fg/90 transition-colors shrink-0">
           <Plus className="w-3.5 h-3.5" strokeWidth={2} />Nuovo Contratto
         </Link>
       </div>
@@ -69,7 +72,7 @@ export default async function ContractsPage({
 
       {contracts.length === 0 ? (
         <div className="bg-surface border border-border rounded-[var(--r-lg)] overflow-hidden">
-          <EmptyState icon={FileCheck} title="Nessun contratto trovato" subtitle={q ? `Nessun risultato per "${q}"` : "Crea il primo contratto"} action={!q ? <Link href="/contracts/new" className="inline-flex items-center gap-1.5 px-3 py-[7px] bg-fg text-white text-[13px] font-medium rounded-[var(--r-md)]"><Plus className="w-3.5 h-3.5" strokeWidth={2} />Nuovo Contratto</Link> : undefined} />
+          <EmptyState icon={FileCheck} title="Nessun contratto trovato" subtitle={q ? `Nessun risultato per "${q}"` : "Crea il primo contratto"} action={!q ? <Link href={`/${slug}/contracts/new`} className="inline-flex items-center gap-1.5 px-3 py-[7px] bg-fg text-white text-[13px] font-medium rounded-[var(--r-md)]"><Plus className="w-3.5 h-3.5" strokeWidth={2} />Nuovo Contratto</Link> : undefined} />
         </div>
       ) : (
         <>
@@ -78,7 +81,7 @@ export default async function ContractsPage({
             {contracts.map((c) => {
               const typeLabel = c.type === "RECURRING" ? "Ricorrente" : c.type === "INSTALLMENT" ? "A Rate" : "Una Tantum";
               return (
-                <Link key={c.id} href={`/contracts/${c.id}`} className="block bg-surface border border-border rounded-[var(--r-lg)] p-4 space-y-2">
+                <Link key={c.id} href={`/${slug}/contracts/${c.id}`} className="block bg-surface border border-border rounded-[var(--r-lg)] p-4 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-[13px] font-semibold text-fg truncate">{c.client.name}</p>
@@ -128,7 +131,7 @@ export default async function ContractsPage({
                       </td>
                       <td className="px-4 py-2.5 font-mono text-[12px] text-fg-2">{formatDate(c.startDate)}</td>
                       <td className="px-4 py-2.5"><Badge variant={c.active ? "ok" : "neutral"}>{c.active ? "Attivo" : "Inattivo"}</Badge></td>
-                      <td className="px-4 py-2.5 text-right"><Link href={`/contracts/${c.id}`} className="text-[12px] font-medium text-info hover:underline">Dettagli</Link></td>
+                      <td className="px-4 py-2.5 text-right"><Link href={`/${slug}/contracts/${c.id}`} className="text-[12px] font-medium text-info hover:underline">Dettagli</Link></td>
                     </tr>
                   );
                 })}

@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { auth } from "@clerk/nextjs/server";
 import { notFound, redirect } from "next/navigation";
+import { NextResponse } from "next/server";
 import { basePrisma, companyDb, type CompanyDb } from "@/lib/db";
 import type { Company } from "@prisma/client";
 
@@ -75,3 +76,48 @@ export const listMyCompanies = cache(async (): Promise<Company[]> => {
   });
   return memberships.map(m => m.company);
 });
+
+/**
+ * Variante per i Route Handler.
+ *
+ * notFound()/redirect() di next/navigation lanciano un segnale pensato per
+ * l'albero di render React (intercettato dal boundary not-found.tsx piu'
+ * vicino); un Route Handler non ha un albero React, quindi qui si ritorna
+ * direttamente una NextResponse invece di lanciare.
+ *
+ * Lo slug arriva dal query param ?company=, perche' le API route restano
+ * fuori dal prefisso /[company] dell'URL.
+ */
+export async function requireCompanyFromRequest(
+  req: Request,
+): Promise<{ ctx: CompanyContext } | { response: NextResponse }> {
+  const slug = new URL(req.url).searchParams.get("company") ?? "";
+
+  if (!slug || RESERVED_SLUGS.has(slug) || !SLUG_PATTERN.test(slug)) {
+    return { response: NextResponse.json({ error: "Azienda non specificata" }, { status: 400 }) };
+  }
+
+  const { userId } = await auth();
+  if (!userId) {
+    return { response: NextResponse.json({ error: "Non autenticato" }, { status: 401 }) };
+  }
+
+  const membership = await basePrisma.companyMember.findFirst({
+    where:   { clerkUserId: userId, company: { slug, active: true } },
+    include: { company: true },
+  });
+
+  if (!membership) {
+    return { response: NextResponse.json({ error: "Non trovato" }, { status: 404 }) };
+  }
+
+  return {
+    ctx: {
+      company:   membership.company,
+      companyId: membership.companyId,
+      slug:      membership.company.slug,
+      userId,
+      db:        companyDb(membership.companyId),
+    },
+  };
+}

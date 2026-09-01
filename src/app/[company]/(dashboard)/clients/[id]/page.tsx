@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { notFound } from "next/navigation";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import ClientForm from "../ClientForm";
@@ -16,9 +16,10 @@ const STATUS_LABEL: Record<string, string> = {
   PAID: "Pagata", SENT: "Inviata", OVERDUE: "Scaduta", DRAFT: "Bozza", CANCELLED: "Annullata",
 };
 
-export default async function ClientDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const client = await prisma.client.findUnique({
+export default async function ClientDetailPage({ params }: { params: Promise<{ company: string; id: string }> }) {
+  const { company: slug, id } = await params;
+  const { db } = await requireCompany(slug);
+  const client = await db.client.findUnique({
     where: { id },
     include: {
       contracts: { include: { product: true, deposit: true } },
@@ -34,7 +35,7 @@ export default async function ClientDetailPage({ params }: { params: Promise<{ i
   return (
     <div className="max-w-4xl space-y-8">
       <div className="flex items-center gap-4">
-        <Link href="/clients" className="text-gray-400 hover:text-gray-600">
+        <Link href={`/${slug}/clients`} className="text-gray-400 hover:text-gray-600">
           <ArrowLeft className="w-5 h-5" />
         </Link>
         <div>

@@ -9,6 +9,8 @@ import {
   GraduationCap, CalendarDays, UsersRound, ScrollText, Settings, X,
   Shield, UserCog, Trophy,
 } from "lucide-react";
+import { useCompanySlug } from "@/lib/useCompany";
+import { companyPath, stripCompany } from "@/lib/paths";
 import type { AppSection } from "@prisma/client";
 
 const SECTION_MAP: Record<string, AppSection> = {
@@ -79,7 +81,8 @@ const MORE_SECTIONS = [
 ];
 
 export function BottomNav({ allowedSections = [] }: { allowedSections?: AppSection[] }) {
-  const pathname = usePathname();
+  const slug = useCompanySlug();
+  const pathname = stripCompany(usePathname());
   const [moreOpen, setMoreOpen] = useState(false);
   const allowed = new Set(allowedSections);
   const hasAny = allowedSections.length > 0;
@@ -119,7 +122,7 @@ export function BottomNav({ allowedSections = [] }: { allowedSections?: AppSecti
           return (
             <Link
               key={href}
-              href={href}
+              href={companyPath(slug, href)}
               onClick={() => setMoreOpen(false)}
               className="flex-1 flex flex-col items-center justify-center gap-[3px] py-2 transition-colors"
               style={{ minHeight: "unset", minWidth: "unset" }}
@@ -200,7 +203,7 @@ export function BottomNav({ allowedSections = [] }: { allowedSections?: AppSecti
                       return (
                         <Link
                           key={href}
-                          href={href}
+                          href={companyPath(slug, href)}
                           onClick={() => setMoreOpen(false)}
                           className="flex flex-col items-center gap-2 py-3 px-2 rounded-[12px] transition-colors"
                           style={{

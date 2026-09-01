@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { formatCurrency } from "@/lib/utils";
 import Link from "next/link";
 import { Package, Plus } from "lucide-react";
@@ -24,16 +24,19 @@ const TYPE_OPTIONS = [
 ];
 
 export default async function ProductsPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ company: string }>;
   searchParams: Promise<{ q?: string; type?: string; active?: string }>;
 }) {
-  const sp     = await searchParams;
+  const [{ company: slug }, sp] = await Promise.all([params, searchParams]);
+  const { db } = await requireCompany(slug);
   const q      = sp.q ?? "";
   const type   = sp.type ?? "";
   const active = sp.active;
 
-  const products = await prisma.product.findMany({
+  const products = await db.product.findMany({
     where: {
       ...(type ? { type: type as never } : {}),
       ...(active === "1" ? { active: true } : active === "0" ? { active: false } : {}),
@@ -48,7 +51,7 @@ export default async function ProductsPage({
 
   const filterLink = (extra: Record<string, string>) => {
     const p = new URLSearchParams({ ...(q ? { q } : {}), ...extra });
-    return `/products?${p.toString()}`;
+    return `/${slug}/products?${p.toString()}`;
   };
 
   return (
@@ -59,7 +62,7 @@ export default async function ProductsPage({
           <p className="text-[13px] text-fg-3 mt-0.5">{products.length} risultati</p>
         </div>
         <Link
-          href="/products/new"
+          href={`/${slug}/products/new`}
           className="inline-flex items-center gap-1.5 px-3 py-[7px] bg-fg text-white text-[13px] font-medium rounded-[var(--r-md)] hover:bg-fg/90 transition-colors shrink-0"
         >
           <Plus className="w-3.5 h-3.5" strokeWidth={2} />
@@ -108,7 +111,7 @@ export default async function ProductsPage({
             subtitle={q ? `Nessun risultato per "${q}"` : "Aggiungi i tuoi servizi e prodotti per creare contratti"}
             action={
               !q ? (
-                <Link href="/products/new" className="inline-flex items-center gap-1.5 px-3 py-[7px] bg-fg text-white text-[13px] font-medium rounded-[var(--r-md)] hover:bg-fg/90 transition-colors">
+                <Link href={`/${slug}/products/new`} className="inline-flex items-center gap-1.5 px-3 py-[7px] bg-fg text-white text-[13px] font-medium rounded-[var(--r-md)] hover:bg-fg/90 transition-colors">
                   <Plus className="w-3.5 h-3.5" strokeWidth={2} /> Nuovo Prodotto
                 </Link>
               ) : undefined
@@ -136,7 +139,7 @@ export default async function ProductsPage({
                 </span>
                 <div className="flex items-center gap-3">
                   <span className="font-mono text-[11px] text-fg-3">{p._count.contracts} contratti</span>
-                  <Link href={`/products/${p.id}`} className="text-[12px] font-medium text-info hover:underline">
+                  <Link href={`/${slug}/products/${p.id}`} className="text-[12px] font-medium text-info hover:underline">
                     Modifica
                   </Link>
                 </div>

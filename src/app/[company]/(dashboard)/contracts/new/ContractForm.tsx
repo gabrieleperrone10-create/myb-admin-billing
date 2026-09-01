@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input, Select, Textarea } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { createContract } from "@/app/actions/contracts";
+import { useCompanySlug } from "@/lib/useCompany";
 import { formatCurrency } from "@/lib/utils";
 
 interface Client  { id: string; name: string; company: string | null }
@@ -44,10 +45,11 @@ export default function ContractForm({ clients, products }: Props) {
     ? parseFloat(amount) / parseInt(installments)
     : null;
 
+  const slug = useCompanySlug();
   const action = (formData: FormData) => {
     formData.set("type", type);
     formData.set("hasDeposit", String(hasDeposit));
-    startTransition(async () => { await createContract(formData); });
+    startTransition(async () => { await createContract(slug, formData); });
   };
 
   return (

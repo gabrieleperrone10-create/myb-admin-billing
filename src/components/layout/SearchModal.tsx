@@ -4,6 +4,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Search, X, ArrowRight } from "lucide-react";
 import type { SearchResult } from "@/app/api/search/route";
+import { useCompanySlug } from "@/lib/useCompany";
+import { companyPath } from "@/lib/paths";
 
 const TYPE_COLORS: Record<string, string> = {
   Cliente:   "#4f7deb",
@@ -22,6 +24,7 @@ interface Props {
 }
 
 export default function SearchModal({ open, onClose }: Props) {
+  const slug = useCompanySlug();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -45,7 +48,7 @@ export default function SearchModal({ open, onClose }: Props) {
     setLoading(true);
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+        const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&company=${slug}`);
         const data = await res.json();
         setResults(data);
         setActiveIdx(0);
@@ -58,7 +61,7 @@ export default function SearchModal({ open, onClose }: Props) {
   useEffect(() => { search(query); }, [query, search]);
 
   function navigate(href: string) {
-    router.push(href);
+    router.push(companyPath(slug, href));
     onClose();
   }
 

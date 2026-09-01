@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { notFound } from "next/navigation";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { ArrowLeft, CheckCircle, Clock, FileText, XCircle } from "lucide-react";
@@ -36,10 +36,11 @@ const STATUS_INVOICE: Record<string, { label: string; cls: string }> = {
   CANCELLED: { label: "Annullata", cls: "bg-gray-100 text-gray-400" },
 };
 
-export default async function ContractDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function ContractDetailPage({ params }: { params: Promise<{ company: string; id: string }> }) {
+  const { company: slug, id } = await params;
+  const { db } = await requireCompany(slug);
 
-  const contract = await prisma.contract.findUnique({
+  const contract = await db.contract.findUnique({
     where: { id },
     include: {
       client:  true,
@@ -55,12 +56,12 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
   if (!contract) notFound();
 
   // Fattura acconto separata
-  const depositInvoice = await prisma.invoice.findFirst({
+  const depositInvoice = await db.invoice.findFirst({
     where: { contractId: id, notes: "Acconto / deposito" },
   });
 
-  const toggleActive   = updateContractStatus.bind(null, id, !contract.active);
-  const deleteAction   = deleteContract.bind(null, id);
+  const toggleActive   = updateContractStatus.bind(null, slug, id, !contract.active);
+  const deleteAction   = deleteContract.bind(null, slug, id);
   const hasPaidInvoices = contract.invoices.some(inv => inv.status === "PAID");
 
   const installmentAmount =
@@ -88,13 +89,13 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
     (totalInstallments === null || invoiceCount < totalInstallments) &&
     nextDate !== null;
 
-  const generateAction = generateNextInvoice.bind(null, id);
+  const generateAction = generateNextInvoice.bind(null, slug, id);
 
   return (
     <div className="max-w-3xl space-y-6">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <Link href="/contracts" className="text-gray-400 hover:text-gray-600 mt-1 shrink-0"><ArrowLeft className="w-5 h-5" /></Link>
+        <Link href={`/${slug}/contracts`} className="text-gray-400 hover:text-gray-600 mt-1 shrink-0"><ArrowLeft className="w-5 h-5" /></Link>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">{contract.product.name}</h1>
@@ -229,7 +230,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
                     <div className="flex items-center gap-2 shrink-0">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.cls}`}>{s.label}</span>
                       <span className="text-sm font-semibold text-gray-900">{formatCurrency(inv.amount)}</span>
-                      <Link href={`/invoices/${inv.id}`} className="text-blue-600"><FileText className="w-4 h-4" /></Link>
+                      <Link href={`/${slug}/invoices/${inv.id}`} className="text-blue-600"><FileText className="w-4 h-4" /></Link>
                     </div>
                   </div>
                 );
@@ -258,7 +259,7 @@ export default async function ContractDetailPage({ params }: { params: Promise<{
                       <td className="px-6 py-3 text-sm font-medium text-gray-900 text-right">{formatCurrency(inv.amount)}</td>
                       <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded-full text-xs font-medium ${s.cls}`}>{s.label}</span></td>
                       <td className="px-6 py-3 text-right">
-                        <Link href={`/invoices/${inv.id}`} className="text-xs font-medium text-blue-600 hover:underline flex items-center gap-1 justify-end">
+                        <Link href={`/${slug}/invoices/${inv.id}`} className="text-xs font-medium text-blue-600 hover:underline flex items-center gap-1 justify-end">
                           <FileText className="w-3 h-3" /> Apri
                         </Link>
                       </td>

@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { markDepositPaid } from "@/app/actions/contracts";
+import { useCompanySlug } from "@/lib/useCompany";
 import { Button } from "@/components/ui/Button";
 import { Input, Select } from "@/components/ui/FormField";
 import { CheckCircle, X } from "lucide-react";
@@ -16,12 +17,13 @@ const METHOD_OPTIONS = [
 interface Props { depositId: string; contractId: string; amount: number }
 
 export default function MarkDepositPaidModal({ depositId, contractId, amount }: Props) {
+  const slug = useCompanySlug();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const action = (formData: FormData) => {
     startTransition(async () => {
-      await markDepositPaid(depositId, contractId, formData);
+      await markDepositPaid(slug, depositId, contractId, formData);
       setOpen(false);
     });
   };
