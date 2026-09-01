@@ -35,6 +35,32 @@ export type CompanyContext = {
 };
 
 /**
+ * Reclamo di un'azienda orfana.
+ *
+ * La migration a multi-azienda ha creato la riga Company da CompanySettings,
+ * ma non poteva inventare una CompanyMember per l'amministratore reale: non
+ * esisteva alcun concetto di membership prima d'ora, quindi non c'e' nessun
+ * dato da cui ricavare il suo clerkUserId. Senza questo, il primo deploy
+ * lascerebbe fuori chiunque, compreso chi amministra l'azienda storica.
+ *
+ * Se un'azienda non ha ancora NESSUN membro, il primo utente autenticato che
+ * la visita ne diventa automaticamente membro predefinito — stesso principio
+ * gia' in uso in seedDefaultRoles() per l'assegnazione del ruolo Owner: chi
+ * arriva per primo su qualcosa di ancora "vuoto" lo reclama. Il varco si
+ * richiude da solo al primo utilizzo (il conteggio membri smette di essere 0),
+ * e questa app e' a inviti (niente registrazione pubblica), quindi "utente
+ * autenticato" significa gia' qualcuno invitato dall'amministratore stesso.
+ */
+async function claimIfOrphan(companyId: string, clerkUserId: string) {
+  const memberCount = await basePrisma.companyMember.count({ where: { companyId } });
+  if (memberCount > 0) return null;
+  return basePrisma.companyMember.create({
+    data: { companyId, clerkUserId, isDefault: true },
+    include: { company: true },
+  });
+}
+
+/**
  * Verifica sessione + membership e restituisce un client gia' filtrato.
  *
  * `cache()` la memoizza per richiesta: layout, pagina, componenti annidati e
@@ -46,10 +72,15 @@ export const requireCompany = cache(async (slug: string): Promise<CompanyContext
   const { userId } = await auth();
   if (!userId) redirect("/sign-in");
 
-  const membership = await basePrisma.companyMember.findFirst({
+  let membership = await basePrisma.companyMember.findFirst({
     where:   { clerkUserId: userId, company: { slug, active: true } },
     include: { company: true },
   });
+
+  if (!membership) {
+    const company = await basePrisma.company.findFirst({ where: { slug, active: true } });
+    if (company) membership = await claimIfOrphan(company.id, userId);
+  }
 
   // 404 e non 403: un utente non deve poter distinguere "azienda inesistente"
   // da "azienda che esiste ma non e' tua".
@@ -102,10 +133,15 @@ export async function requireCompanyFromRequest(
     return { response: NextResponse.json({ error: "Non autenticato" }, { status: 401 }) };
   }
 
-  const membership = await basePrisma.companyMember.findFirst({
+  let membership = await basePrisma.companyMember.findFirst({
     where:   { clerkUserId: userId, company: { slug, active: true } },
     include: { company: true },
   });
+
+  if (!membership) {
+    const company = await basePrisma.company.findFirst({ where: { slug, active: true } });
+    if (company) membership = await claimIfOrphan(company.id, userId);
+  }
 
   if (!membership) {
     return { response: NextResponse.json({ error: "Non trovato" }, { status: 404 }) };

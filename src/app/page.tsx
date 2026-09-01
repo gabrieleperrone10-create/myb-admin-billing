@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { listMyCompanies } from "@/lib/company";
+import { basePrisma } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,17 @@ export default async function RootPage() {
   const companies = await listMyCompanies();
 
   if (companies.length === 0) {
+    // Subito dopo il passaggio a multi-azienda non esiste ancora nessuna
+    // CompanyMember per l'azienda storica (il concetto non esisteva prima):
+    // se c'e' esattamente un'azienda orfana, la si raggiunge — il reclamo vero
+    // e proprio lo fa requireCompany() quando l'utente ci arriva.
+    const orphans = await basePrisma.company.findMany({
+      where: { active: true, members: { none: {} } },
+      select: { slug: true },
+      take: 2,
+    });
+    if (orphans.length === 1) redirect(`/${orphans[0].slug}/dashboard`);
+
     // L'utente e' autenticato (altrimenti clerkMiddleware l'avrebbe gia'
     // rimandato a /sign-in) ma non e' membro di nessuna azienda. NON si
     // rimanda a /sign-in: per un utente gia' autenticato Clerk lo riporterebbe

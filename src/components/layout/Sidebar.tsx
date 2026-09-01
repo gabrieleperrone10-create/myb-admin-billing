@@ -15,6 +15,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import SearchModal from "./SearchModal";
 import { useCompanySlug } from "@/lib/useCompany";
 import { companyPath, stripCompany } from "@/lib/paths";
+import { CompanySwitcher } from "./CompanySwitcher";
 import type { AppSection } from "@prisma/client";
 
 const SECTION_MAP: Record<string, AppSection> = {
@@ -69,7 +70,17 @@ const sistema = [
   { href: "/settings/roles", label: "Ruoli",      icon: Shield },
 ];
 
-export default function Sidebar({ allowedSections = [], companyName = "Azienda" }: { allowedSections?: AppSection[]; companyName?: string }) {
+type CompanyOption = { slug: string; name: string };
+
+export default function Sidebar({
+  allowedSections = [],
+  companyName = "Azienda",
+  companies = [],
+}: {
+  allowedSections?: AppSection[];
+  companyName?: string;
+  companies?: CompanyOption[];
+}) {
   const slug = useCompanySlug();
   const pathname = stripCompany(usePathname());
   const { user } = useUser();
@@ -125,21 +136,12 @@ export default function Sidebar({ allowedSections = [], companyName = "Azienda" 
       className="hidden md:flex w-[220px] shrink-0 flex-col h-full"
       style={{ backgroundColor: "var(--surface)", borderRight: "1px solid var(--border)" }}
     >
-      {/* Logo */}
-      <div
-        className="flex items-center gap-2.5 px-4 shrink-0"
-        style={{ borderBottom: "1px solid var(--border)", height: "var(--topbar-h)" }}
-      >
-        <div
-          className="w-[22px] h-[22px] rounded-[5px] flex items-center justify-center shrink-0"
-          style={{ backgroundColor: "var(--fg)" }}
-        >
-          <span className="text-[11px] font-bold leading-none select-none" style={{ color: "var(--surface)" }}>{companyName[0]?.toUpperCase() ?? "A"}</span>
-        </div>
-        <span className="text-[13px] font-semibold truncate" style={{ color: "var(--fg)", letterSpacing: "-0.01em" }}>
-          {companyName}
-        </span>
-      </div>
+      {/* Selettore azienda */}
+      <CompanySwitcher
+        companies={companies.length > 0 ? companies : [{ slug, name: companyName }]}
+        currentSlug={slug}
+        currentName={companyName}
+      />
 
       {/* Search */}
       <div className="px-3 py-2.5" style={{ borderBottom: "1px solid var(--border)" }}>
