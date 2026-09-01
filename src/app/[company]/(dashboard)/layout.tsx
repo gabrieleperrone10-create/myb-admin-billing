@@ -4,7 +4,7 @@ import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { AuthGuard } from "@/components/layout/AuthGuard";
-import { requireCompany, listMyCompanies, companyDisplayName } from "@/lib/company";
+import { requireCompany, listMyCompanies } from "@/lib/company";
 import { getUserPermissions, canView, ALL_SECTIONS } from "@/lib/permissions";
 
 /**
@@ -18,7 +18,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { company: slug } = await params;
   const ctx = await requireCompany(slug);
-  return { title: `${companyDisplayName(ctx.company)} — Admin` };
+  return { title: `${ctx.company.name} — Admin` };
 }
 
 export default async function DashboardLayout({
@@ -32,24 +32,21 @@ export default async function DashboardLayout({
   const [ctx, companies] = await Promise.all([requireCompany(slug), listMyCompanies()]);
   const perms = await getUserPermissions(ctx.db, ctx.companyId, ctx.userId);
   const allowedSections = ALL_SECTIONS.filter(s => canView(perms, s));
-  const companyOptions = companies.map(c => ({ slug: c.slug, name: companyDisplayName(c), logoUrl: c.logoUrl }));
 
   return (
     <AuthGuard>
       <div className="flex h-screen overflow-hidden bg-bg">
         <Sidebar
           allowedSections={allowedSections}
-          companyName={companyDisplayName(ctx.company)}
-          companyLogoUrl={ctx.company.logoUrl}
-          companies={companyOptions}
+          companyName={ctx.company.name}
+          companies={companies.map(c => ({ slug: c.slug, name: c.name }))}
         />
 
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           <Suspense fallback={null}>
             <Topbar
-              companies={companyOptions}
-              currentCompanyName={companyDisplayName(ctx.company)}
-              currentCompanyLogoUrl={ctx.company.logoUrl}
+              companies={companies.map(c => ({ slug: c.slug, name: c.name }))}
+              currentCompanyName={ctx.company.name}
             />
           </Suspense>
 

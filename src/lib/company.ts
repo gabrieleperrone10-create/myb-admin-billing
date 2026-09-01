@@ -26,15 +26,6 @@ export const RESERVED_SLUGS = new Set([
 
 export const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,48}$/;
 
-/**
- * Nome da mostrare nell'app (sidebar, switcher, titolo pagina, email di
- * accesso). Distinto da "name" (ragione sociale, usata su fatture e documenti
- * fiscali) perche' piu' brand possono condividere la stessa ragione sociale.
- */
-export function companyDisplayName(c: { name: string; brandName?: string | null }) {
-  return c.brandName || c.name;
-}
-
 export type CompanyContext = {
   company: Company;
   companyId: string;

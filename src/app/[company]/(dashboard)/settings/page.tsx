@@ -41,9 +41,8 @@ export default async function SettingsPage({
             <li className="flex gap-2">
               <span className="font-semibold shrink-0">1.</span>
               <span>
-                Carica il <strong>logo</strong> e imposta <strong>nome legale e nome brand</strong> qui
-                sotto — il nome legale va su fatture e documenti fiscali, il brand è quello mostrato
-                nell&apos;app — poi compila indirizzo e coordinate bancarie.
+                Compila <strong>dati fiscali, indirizzo e coordinate bancarie</strong> qui sotto:
+                compaiono su fatture, note di credito e nelle email ai clienti.
               </span>
             </li>
             <li className="flex gap-2">
