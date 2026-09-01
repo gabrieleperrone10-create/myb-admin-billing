@@ -269,23 +269,77 @@ ALTER TABLE "DocumentCounter" ADD CONSTRAINT "DocumentCounter_companyId_fkey" FO
 
 -- ── 5. Unique globali -> per azienda (nuovo PRIMA di droppare il vecchio) ──
 CREATE UNIQUE INDEX "Client_companyId_email_key" ON "Client"("companyId", "email");
-DROP INDEX "Client_email_key";
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Client_email_key') THEN
+    EXECUTE 'ALTER TABLE "Client" DROP CONSTRAINT "Client_email_key"';
+  ELSE
+    EXECUTE 'DROP INDEX IF EXISTS "Client_email_key"';
+  END IF;
+END $$;
 CREATE UNIQUE INDEX "Invoice_companyId_number_key" ON "Invoice"("companyId", "number");
-DROP INDEX "Invoice_number_key";
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Invoice_number_key') THEN
+    EXECUTE 'ALTER TABLE "Invoice" DROP CONSTRAINT "Invoice_number_key"';
+  ELSE
+    EXECUTE 'DROP INDEX IF EXISTS "Invoice_number_key"';
+  END IF;
+END $$;
 CREATE UNIQUE INDEX "CreditNote_companyId_number_key" ON "CreditNote"("companyId", "number");
-DROP INDEX "CreditNote_number_key";
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'CreditNote_number_key') THEN
+    EXECUTE 'ALTER TABLE "CreditNote" DROP CONSTRAINT "CreditNote_number_key"';
+  ELSE
+    EXECUTE 'DROP INDEX IF EXISTS "CreditNote_number_key"';
+  END IF;
+END $$;
 CREATE UNIQUE INDEX "Automation_companyId_type_key" ON "Automation"("companyId", "type");
-DROP INDEX "Automation_type_key";
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Automation_type_key') THEN
+    EXECUTE 'ALTER TABLE "Automation" DROP CONSTRAINT "Automation_type_key"';
+  ELSE
+    EXECUTE 'DROP INDEX IF EXISTS "Automation_type_key"';
+  END IF;
+END $$;
 CREATE UNIQUE INDEX "SopTag_companyId_name_key" ON "SopTag"("companyId", "name");
-DROP INDEX "SopTag_name_key";
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'SopTag_name_key') THEN
+    EXECUTE 'ALTER TABLE "SopTag" DROP CONSTRAINT "SopTag_name_key"';
+  ELSE
+    EXECUTE 'DROP INDEX IF EXISTS "SopTag_name_key"';
+  END IF;
+END $$;
 CREATE UNIQUE INDEX "Tag_companyId_name_key" ON "Tag"("companyId", "name");
-DROP INDEX "Tag_name_key";
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Tag_name_key') THEN
+    EXECUTE 'ALTER TABLE "Tag" DROP CONSTRAINT "Tag_name_key"';
+  ELSE
+    EXECUTE 'DROP INDEX IF EXISTS "Tag_name_key"';
+  END IF;
+END $$;
 CREATE UNIQUE INDEX "TeamMember_companyId_email_key" ON "TeamMember"("companyId", "email");
-DROP INDEX "TeamMember_email_key";
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'TeamMember_email_key') THEN
+    EXECUTE 'ALTER TABLE "TeamMember" DROP CONSTRAINT "TeamMember_email_key"';
+  ELSE
+    EXECUTE 'DROP INDEX IF EXISTS "TeamMember_email_key"';
+  END IF;
+END $$;
 CREATE UNIQUE INDEX "AppRole_companyId_name_key" ON "AppRole"("companyId", "name");
-DROP INDEX "AppRole_name_key";
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AppRole_name_key') THEN
+    EXECUTE 'ALTER TABLE "AppRole" DROP CONSTRAINT "AppRole_name_key"';
+  ELSE
+    EXECUTE 'DROP INDEX IF EXISTS "AppRole_name_key"';
+  END IF;
+END $$;
 CREATE UNIQUE INDEX "AppUserRole_companyId_clerkUserId_roleId_key" ON "AppUserRole"("companyId", "clerkUserId", "roleId");
-DROP INDEX "AppUserRole_clerkUserId_roleId_key";
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AppUserRole_clerkUserId_roleId_key') THEN
+    EXECUTE 'ALTER TABLE "AppUserRole" DROP CONSTRAINT "AppUserRole_clerkUserId_roleId_key"';
+  ELSE
+    EXECUTE 'DROP INDEX IF EXISTS "AppUserRole_clerkUserId_roleId_key"';
+  END IF;
+END $$;
 
 -- ── 6. Indici sui filtri realmente usati dal codice ───────────────────────
 -- Lo schema non ne aveva NESSUNO prima di adesso.
