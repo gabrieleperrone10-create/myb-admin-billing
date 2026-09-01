@@ -3,9 +3,16 @@ generator client {
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
+// DATABASE_URL punta al Transaction pooler di Supabase (porta 6543): serve
+// alle query dell'app, ma PgBouncer in modalità transazione non supporta i
+// lock di sessione che "prisma migrate deploy" richiede (ogni statement puo'
+// finire su una connessione fisica diversa) — la migration resta appesa
+// all'infinito invece di fallire. DIRECT_URL punta al Session pooler (porta
+// 5432, stesso host/credenziali) e la usa solo "prisma migrate deploy".
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 enum ProductType {
