@@ -10,7 +10,7 @@ export const createInvoice = companyAction(async (ctx, formData: FormData) => {
   const amount = lineItems.reduce((s: number, li: { total: number }) => s + li.total, 0);
 
   const number = await nextInvoiceNumber(
-    ctx.db, ctx.company.invoicePrefix, ctx.company.numberPadding,
+    ctx.db, ctx.companyId, ctx.company.invoicePrefix, ctx.company.numberPadding,
   );
 
   const statusRaw = (formData.get("status") as string) || "DRAFT";

@@ -154,7 +154,7 @@ async function executeTool(ctx: CompanyContext, name: string, input: Record<stri
     }
 
     case "get_next_invoice_number": {
-      return { number: await nextInvoiceNumber(db, company.invoicePrefix, company.numberPadding) };
+      return { number: await nextInvoiceNumber(db, companyId, company.invoicePrefix, company.numberPadding) };
     }
 
     case "create_and_send_invoice": {
@@ -166,7 +166,7 @@ async function executeTool(ctx: CompanyContext, name: string, input: Record<stri
       const invoiceStatus = (input.status as "DRAFT" | "SENT" | "PAID") ?? "SENT";
       const paidAt = input.paidAt ? new Date(String(input.paidAt)) : (invoiceStatus === "PAID" ? new Date() : undefined);
 
-      const number = await nextInvoiceNumber(db, company.invoicePrefix, company.numberPadding, issueDate.getFullYear());
+      const number = await nextInvoiceNumber(db, companyId, company.invoicePrefix, company.numberPadding, issueDate.getFullYear());
 
       const amount = lineItemsRaw.reduce((s, li) => s + li.quantity * li.unitPrice, 0);
 
@@ -233,6 +233,7 @@ async function executeTool(ctx: CompanyContext, name: string, input: Record<stri
             province: company.province, country: company.country,
             bankName: company.bankName, iban: company.iban, bic: company.bic,
             invoiceFooter: company.invoiceFooter,
+      logoUrl: company.logoUrl,
           },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         }) as any;

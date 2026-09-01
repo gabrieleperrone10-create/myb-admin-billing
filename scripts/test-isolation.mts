@@ -49,7 +49,7 @@ try {
 
 // 6. modello non-tenant resta globale
 const migrations = await basePrisma.$queryRaw<{c: bigint}[]>`select count(*)::int as c from "_prisma_migrations"`;
-t("client base non filtrato ancora utilizzabile", Number(migrations[0].c) === 7, `${migrations[0].c} migration`);
+t("client base non filtrato ancora utilizzabile", Number(migrations[0].c) > 0, `${migrations[0].c} migration`);
 
 console.log(`\n${pass} passati, ${fail} falliti`);
 await basePrisma.$disconnect();

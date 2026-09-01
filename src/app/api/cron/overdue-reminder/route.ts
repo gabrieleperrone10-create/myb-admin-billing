@@ -73,6 +73,7 @@ export async function GET(req: NextRequest) {
           province: company.province, country: company.country,
           bankName: company.bankName, iban: company.iban, bic: company.bic,
           invoiceFooter: company.invoiceFooter,
+      logoUrl: company.logoUrl,
         },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       }) as any;

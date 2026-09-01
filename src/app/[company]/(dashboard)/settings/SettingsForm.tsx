@@ -76,10 +76,10 @@ export default function SettingsForm({ settings }: Props) {
             <p className="text-[12px] text-fg-3 mt-0.5">Appaiono nella sezione &quot;Emessa da&quot; di ogni fattura.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input label="Nome azienda / Brand" name="name" required placeholder="Market Your Business" defaultValue={settings.name} />
+            <Input label="Nome azienda / Brand" name="name" required placeholder="La Mia Azienda SRL" defaultValue={settings.name} />
             <Input label="Email aziendale" name="email" type="email" required placeholder="info@example.com" defaultValue={settings.email} />
             <Input label="Telefono" name="phone" type="tel" placeholder="+44 7700 000000" defaultValue={settings.phone ?? ""} />
-            <Input label="Sito web" name="website" placeholder="www.marketyourbusiness.com" defaultValue={settings.website ?? ""} />
+            <Input label="Sito web" name="website" placeholder="www.miaazienda.com" defaultValue={settings.website ?? ""} />
           </div>
         </section>
 

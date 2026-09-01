@@ -1,80 +1,70 @@
 import "server-only";
 
 /**
- * Numerazione documenti — unica implementazione, per azienda.
+ * Numerazione documenti — unica implementazione, per azienda, atomica.
  *
  * Sostituisce le 6 copie divergenti che c'erano prima (actions/invoices.ts,
  * actions/contracts.ts, api/cron/generate-invoices, actions/creditNotes.ts e le
- * due varianti in api/invoices/ai).
+ * due varianti in api/invoices/ai) e la prima versione consolidata, che restava
+ * read-then-write (leggeva il massimo esistente e lo incrementava in memoria):
+ * sotto due richieste concorrenti sulla stessa azienda poteva produrre lo stesso
+ * numero due volte, con solo l'indice unique su `number` a impedire il duplicato
+ * (con un 500, non con un numero corretto).
  *
- * Semantica preservata volutamente identica a quella dei percorsi di creazione
- * reali: il progressivo è il massimo trovato su TUTTI gli anni, formattato con
- * l'anno corrente. Non si azzera a gennaio. Le due varianti in api/invoices/ai
- * facevano invece un reset annuale con `orderBy: { number: "desc" }`
- * lessicografico (rotto oltre la sequenza 9999): erano in conflitto con il resto
- * e vengono allineate qui.
+ * Qui l'incremento passa da `DocumentCounter`, una riga per (azienda, tipo,
+ * anno), con un `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` — che in
+ * Postgres prende un row lock sulla riga del contatore: i chiamanti concorrenti
+ * si serializzano e ricevono valori distinti, in un solo round trip.
  *
- * NOTA: resta read-then-write, quindi non è sicura in concorrenza. L'unico
- * presidio è l'indice unique su `number`. Diventa atomica nella fase 4, con la
- * tabella DocumentCounter e un INSERT ... ON CONFLICT DO UPDATE RETURNING.
+ * Va chiamata DENTRO la stessa transazione della create del documento: se la
+ * create fallisce, il rollback annulla anche l'incremento del contatore.
  */
 
-/**
- * Tipo strutturale, non `PrismaClient`: cosi' accetta sia il client base sia quello
- * esteso da companyDb() sia una TransactionClient, senza dipendere dalla forma
- * esatta che $extends produce.
- */
-type Reader = { findMany(args: { select: { number: true } }): Promise<{ number: string }[]> };
-type Db = { invoice: Reader; creditNote: Reader };
+/** Tipo strutturale: basta $queryRaw, cosi' funziona sia col client base sia con
+ *  quello scoped da companyDb() (l'estensione comunque non intercetta $queryRaw) sia
+ *  con un Prisma.TransactionClient. */
+type Db = {
+  $queryRaw<T = unknown>(query: TemplateStringsArray, ...values: unknown[]): Promise<T>;
+};
 
 function format(prefix: string, year: number, sequence: number, padding: number) {
   return `${prefix}-${year}-${String(sequence).padStart(padding, "0")}`;
 }
 
-function maxSequence(numbers: string[], prefix: string) {
-  const re = new RegExp(`^${prefix}-\\d{4}-(\\d+)$`);
-  let max = 0;
-  for (const n of numbers) {
-    const m = n.match(re);
-    if (m) {
-      const value = parseInt(m[1], 10);
-      if (value > max) max = value;
-    }
-  }
-  return max;
-}
-
-/**
- * Allocatore per la generazione in blocco: legge una sola volta e poi incrementa
- * in memoria. Serve al cron, che prima rifaceva una scansione completa della
- * tabella Invoice per ogni rata generata.
- */
-export async function invoiceNumberAllocator(
-  client: Db,
+async function nextSequence(
+  db: Db,
+  companyId: string,
+  kind: "INVOICE" | "CREDIT_NOTE",
   year: number,
-  prefix: string,
-  padding: number,
-): Promise<() => string> {
-  const all = await client.invoice.findMany({ select: { number: true } });
-  let seq = maxSequence(all.map(i => i.number), prefix);
-  return () => format(prefix, year, ++seq, padding);
+): Promise<number> {
+  const rows = await db.$queryRaw<{ lastValue: number }[]>`
+    INSERT INTO "DocumentCounter" ("companyId", "kind", "year", "lastValue")
+    VALUES (${companyId}, ${kind}::"DocumentKind", ${year}, 1)
+    ON CONFLICT ("companyId", "kind", "year")
+    DO UPDATE SET "lastValue" = "DocumentCounter"."lastValue" + 1
+    RETURNING "lastValue"
+  `;
+  return rows[0].lastValue;
 }
 
 export async function nextInvoiceNumber(
-  client: Db,
+  db: Db,
+  companyId: string,
   prefix: string,
   padding: number,
   year = new Date().getFullYear(),
 ): Promise<string> {
-  return (await invoiceNumberAllocator(client, year, prefix, padding))();
+  const seq = await nextSequence(db, companyId, "INVOICE", year);
+  return format(prefix, year, seq, padding);
 }
 
 export async function nextCreditNoteNumber(
-  client: Db,
+  db: Db,
+  companyId: string,
   prefix: string,
   padding: number,
   year = new Date().getFullYear(),
 ): Promise<string> {
-  const all = await client.creditNote.findMany({ select: { number: true } });
-  return format(prefix, year, maxSequence(all.map(c => c.number), prefix) + 1, padding);
+  const seq = await nextSequence(db, companyId, "CREDIT_NOTE", year);
+  return format(prefix, year, seq, padding);
 }

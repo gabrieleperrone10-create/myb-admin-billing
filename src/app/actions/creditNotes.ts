@@ -13,7 +13,7 @@ export const createCreditNoteFromInvoice = companyAction(async (ctx, invoiceId: 
   const amount = amountRaw ? parseFloat(amountRaw) : invoice.amount;
   const reason = (formData.get("reason") as string) || "";
 
-  const number = await nextCreditNoteNumber(ctx.db, ctx.company.creditNotePrefix, ctx.company.numberPadding);
+  const number = await nextCreditNoteNumber(ctx.db, ctx.companyId, ctx.company.creditNotePrefix, ctx.company.numberPadding);
   const lineItems = [{
     description: `Storno fattura ${invoice.number}${reason ? " — " + reason : ""}`,
     quantity: 1,
@@ -58,7 +58,7 @@ export const createManualCreditNote = companyAction(async (ctx, formData: FormDa
   const originalInvoiceDateRaw = formData.get("originalInvoiceDate") as string | null;
   const issueDateRaw = formData.get("issueDate") as string | null;
 
-  const number = await nextCreditNoteNumber(ctx.db, ctx.company.creditNotePrefix, ctx.company.numberPadding);
+  const number = await nextCreditNoteNumber(ctx.db, ctx.companyId, ctx.company.creditNotePrefix, ctx.company.numberPadding);
   const lineItems = [{
     description: `Storno fattura ${originalInvoiceNumber}${reason ? " — " + reason : ""}`,
     quantity: 1,

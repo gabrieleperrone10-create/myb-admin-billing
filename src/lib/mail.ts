@@ -68,6 +68,7 @@ export async function sendInvoiceEmail(companyId: string, invoiceId: string): Pr
       iban: company.iban,
       bic: company.bic,
       invoiceFooter: company.invoiceFooter,
+      logoUrl: company.logoUrl,
     },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }) as any;
@@ -226,6 +227,7 @@ export async function sendCreditNoteEmail(companyId: string, creditNoteId: strin
       province: company.province,
       country: company.country,
       invoiceFooter: company.invoiceFooter,
+      logoUrl: company.logoUrl,
     },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   }) as any;

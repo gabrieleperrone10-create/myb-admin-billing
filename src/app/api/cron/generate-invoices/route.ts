@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { forEachCompany, isAuthorizedCron } from "@/lib/cron";
-import { invoiceNumberAllocator } from "@/lib/numbering";
+import { nextInvoiceNumber } from "@/lib/numbering";
 
 const PERIOD_MONTHS: Record<string, number> = {
   MONTHLY: 1, QUARTERLY: 3, ANNUALLY: 12,
@@ -28,12 +28,6 @@ export async function GET(req: NextRequest) {
 
   const today   = new Date();
   const created: string[] = [];
-
-  // Una sola scansione per l'intera passata: prima si rileggeva l'intera tabella
-  // Invoice per ogni rata generata (O(n^2) sui contratti arretrati).
-  const allocateInvoiceNumber = await invoiceNumberAllocator(
-    db, new Date().getFullYear(), company.invoicePrefix, company.numberPadding,
-  );
 
   for (const contract of contracts) {
     // Non iniziare le rate se il deposito non è stato pagato
@@ -72,7 +66,13 @@ export async function GET(req: NextRequest) {
       const dueDate = new Date(nextDate);
       dueDate.setDate(dueDate.getDate() + 15);
 
-      const number = allocateInvoiceNumber();
+      // L'anno del numero segue l'anno di emissione della rata, non quello
+      // corrente: un contratto con arretrati che attraversano un capodanno deve
+      // ricevere numeri nell'anno a cui la rata appartiene, non tutti nell'anno
+      // in cui gira il cron.
+      const number = await nextInvoiceNumber(
+        db, company.id, company.invoicePrefix, company.numberPadding, nextDate.getFullYear(),
+      );
       await db.invoice.create({
         data: {
           companyId:  company.id,

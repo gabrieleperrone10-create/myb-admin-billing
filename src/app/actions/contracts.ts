@@ -58,7 +58,7 @@ export const createContract = companyAction(async (ctx, formData: FormData) => {
     const today   = new Date();
     const dueDate = new Date(today);
     dueDate.setDate(dueDate.getDate() + 15);
-    const number  = await nextInvoiceNumber(ctx.db, ctx.company.invoicePrefix, ctx.company.numberPadding);
+    const number  = await nextInvoiceNumber(ctx.db, ctx.companyId, ctx.company.invoicePrefix, ctx.company.numberPadding);
     await ctx.db.invoice.create({
       data: {
         companyId:  ctx.companyId,
@@ -145,7 +145,7 @@ export const markDepositPaid = companyAction(async (
       data:  { status: "PAID", paidAt, issueDate: paidAt, dueDate: paidAt },
     });
   } else {
-    const number = await nextInvoiceNumber(ctx.db, ctx.company.invoicePrefix, ctx.company.numberPadding);
+    const number = await nextInvoiceNumber(ctx.db, ctx.companyId, ctx.company.invoicePrefix, ctx.company.numberPadding);
     await ctx.db.invoice.create({
       data: {
         companyId:  ctx.companyId,
@@ -206,7 +206,7 @@ export const generateNextInvoice = companyAction(async (ctx, contractId: string)
   const dueDate = new Date(issueDate);
   dueDate.setDate(dueDate.getDate() + 15);
 
-  const number = await nextInvoiceNumber(ctx.db, ctx.company.invoicePrefix, ctx.company.numberPadding, issueDate.getFullYear());
+  const number = await nextInvoiceNumber(ctx.db, ctx.companyId, ctx.company.invoicePrefix, ctx.company.numberPadding, issueDate.getFullYear());
   const invoice = await ctx.db.invoice.create({
     data: {
       companyId:  ctx.companyId,

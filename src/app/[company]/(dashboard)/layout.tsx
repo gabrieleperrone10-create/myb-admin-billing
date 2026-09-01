@@ -1,10 +1,25 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { AuthGuard } from "@/components/layout/AuthGuard";
 import { requireCompany } from "@/lib/company";
 import { getUserPermissions, canView, ALL_SECTIONS } from "@/lib/permissions";
+
+/**
+ * requireCompany() e' memoizzata con cache(): questa chiamata e quella dentro
+ * DashboardLayout condividono la stessa query, non ne raddoppiano il costo.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ company: string }>;
+}): Promise<Metadata> {
+  const { company: slug } = await params;
+  const ctx = await requireCompany(slug);
+  return { title: `${ctx.company.name} — Admin` };
+}
 
 export default async function DashboardLayout({
   children,

@@ -22,7 +22,7 @@ export default function SignInPage() {
           >
             <span className="text-white font-bold text-sm select-none">M</span>
           </div>
-          <span className="text-white/70 font-medium text-[14px] tracking-tight">Market Your Business</span>
+          <span className="text-white/70 font-medium text-[14px] tracking-tight">Gestionale</span>
         </div>
 
         {/* Main message */}
@@ -80,7 +80,7 @@ export default function SignInPage() {
           >
             <span className="text-[11px] font-bold select-none" style={{ color: "var(--surface)" }}>M</span>
           </div>
-          <span className="font-semibold text-[15px]" style={{ color: "var(--fg)" }}>Market Your Business</span>
+          <span className="font-semibold text-[15px]" style={{ color: "var(--fg)" }}>Gestionale</span>
         </div>
 
         <div className="w-full max-w-sm">
