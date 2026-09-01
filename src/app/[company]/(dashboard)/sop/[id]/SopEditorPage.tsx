@@ -2,6 +2,7 @@
 import { useState, useRef, useCallback } from "react";
 import dynamic from "next/dynamic";
 import { updateSop, addSopAttachmentLink, addSopAttachmentFile, deleteSopAttachment } from "@/app/actions/sop";
+import { useCompanySlug } from "@/lib/useCompany";
 import {
   Save, Eye, EyeOff, Link2, Upload, Trash2, FileText,
   ExternalLink, Paperclip, Tag, FolderOpen, Users, Check,
@@ -31,6 +32,7 @@ export function SopEditorPage({
   folders: SopFolder[];
   allTags: SopTag[];
 }) {
+  const slug = useCompanySlug();
   const [title, setTitle] = useState(sop.title);
   const [content, setContent] = useState<object>(sop.content as object ?? {});
   const [published, setPublished] = useState(sop.published);
@@ -53,7 +55,7 @@ export function SopEditorPage({
   async function save() {
     setSaving(true);
     try {
-      const result = await updateSop(sop.id, {
+      const result = await updateSop(slug, sop.id, {
         title,
         content: JSON.parse(JSON.stringify(content)),
         published,
@@ -79,7 +81,7 @@ export function SopEditorPage({
   async function handleAddLink(e: React.FormEvent) {
     e.preventDefault();
     if (!linkName || !linkUrl) return;
-    const att = await addSopAttachmentLink({ sopId: sop.id, name: linkName, url: linkUrl });
+    const att = await addSopAttachmentLink(slug, { sopId: sop.id, name: linkName, url: linkUrl });
     setAttachments(prev => [...prev, att]);
     setLinkName(""); setLinkUrl(""); setAddingLink(false);
   }
@@ -91,7 +93,7 @@ export function SopEditorPage({
     const fd = new FormData();
     fd.append("sopId", sop.id);
     fd.append("file", file);
-    const att = await addSopAttachmentFile(fd);
+    const att = await addSopAttachmentFile(slug, fd);
     setAttachments(prev => [...prev, att]);
     setUploading(false);
     if (fileRef.current) fileRef.current.value = "";
@@ -99,7 +101,7 @@ export function SopEditorPage({
 
   async function handleDeleteAtt(att: SopAttachment) {
     setDeletingId(att.id);
-    await deleteSopAttachment(att.id, sop.id, att.type === "FILE" ? att.url : undefined);
+    await deleteSopAttachment(slug, att.id, sop.id, att.type === "FILE" ? att.url : undefined);
     setAttachments(prev => prev.filter(a => a.id !== att.id));
     setDeletingId(null);
   }

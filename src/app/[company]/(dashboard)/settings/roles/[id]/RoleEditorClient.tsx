@@ -44,7 +44,7 @@ const LEVEL_COLORS: Record<PermissionLevel, string> = {
 
 const COLORS = ["#dc2626","#f97316","#eab308","#22c55e","#14b8a6","#4f7deb","#8b5cf6","#ec4899","#6b7280"];
 
-export default function RoleEditorClient({ role }: { role: RoleWithPerms }) {
+export default function RoleEditorClient({ role, slug }: { role: RoleWithPerms; slug: string }) {
   const [name, setName] = useState(role.name);
   const [desc, setDesc] = useState(role.description ?? "");
   const [color, setColor] = useState(role.color);
@@ -63,8 +63,8 @@ export default function RoleEditorClient({ role }: { role: RoleWithPerms }) {
   async function handleSave() {
     setLoading(true);
     const [metaRes, permRes] = await Promise.all([
-      updateRole(role.id, { name: name.trim(), description: desc.trim() || undefined, color }),
-      updateRolePermissions(role.id, ALL_SECTIONS.map(section => ({ section, level: perms[section] }))),
+      updateRole(slug, role.id, { name: name.trim(), description: desc.trim() || undefined, color }),
+      updateRolePermissions(slug, role.id, ALL_SECTIONS.map(section => ({ section, level: perms[section] }))),
     ]);
     setLoading(false);
     if (metaRes.ok && permRes.ok) {

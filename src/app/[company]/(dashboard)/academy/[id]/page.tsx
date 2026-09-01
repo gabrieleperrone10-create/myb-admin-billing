@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { notFound } from "next/navigation";
 import { BookOpen, ChevronLeft, EyeOff } from "lucide-react";
 import Link from "next/link";
@@ -22,12 +22,14 @@ function ModuleTree({
   courseId,
   currentLessonId,
   accentColor,
+  slug,
   depth = 0,
 }: {
   modules: ModuleFull[];
   courseId: string;
   currentLessonId?: string;
   accentColor: string;
+  slug: string;
   depth?: number;
 }) {
   return (
@@ -60,7 +62,7 @@ function ModuleTree({
             return (
               <Link
                 key={lesson.id}
-                href={`/academy/${courseId}?lesson=${lesson.id}`}
+                href={`/${slug}/academy/${courseId}?lesson=${lesson.id}`}
                 className="flex items-center gap-2.5 py-2.5 transition-colors"
                 style={{
                   paddingLeft: `${20 + depth * 12}px`,
@@ -107,6 +109,7 @@ function ModuleTree({
               courseId={courseId}
               currentLessonId={currentLessonId}
               accentColor={accentColor}
+              slug={slug}
               depth={depth + 1}
             />
           )}
@@ -120,13 +123,13 @@ export default async function CourseDetailPage({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ company: string; id: string }>;
   searchParams: Promise<{ lesson?: string }>;
 }) {
-  const { id } = await params;
-  const { lesson: lessonId } = await searchParams;
+  const [{ company: slug, id }, { lesson: lessonId }] = await Promise.all([params, searchParams]);
+  const { db } = await requireCompany(slug);
 
-  const course = await prisma.course.findUnique({
+  const course = await db.course.findUnique({
     where: { id },
     include: {
       category: true,
@@ -181,11 +184,12 @@ export default async function CourseDetailPage({
       courseId={course.id}
       currentLessonId={currentLesson?.id}
       accentColor={course.category.color}
+      slug={slug}
     />
   );
 
   const mainContent = currentLesson ? (
-    <LessonPlayer lesson={currentLesson} accentColor={course.category.color} courseId={course.id} />
+    <LessonPlayer lesson={currentLesson} accentColor={course.category.color} courseId={course.id} slug={slug} />
   ) : (
     <div
       className="flex flex-col items-center justify-center rounded-[var(--r-lg)]"
@@ -205,7 +209,7 @@ export default async function CourseDetailPage({
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 mb-4">
         <Link
-          href="/academy"
+          href={`/${slug}/academy`}
           className="flex items-center gap-1 text-[13px] hover:opacity-70"
           style={{ color: "var(--fg-3)", minHeight: "unset" }}
         >

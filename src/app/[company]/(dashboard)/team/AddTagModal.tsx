@@ -1,12 +1,14 @@
 "use client";
 import { useState } from "react";
 import { createTag } from "@/app/actions/team";
+import { useCompanySlug } from "@/lib/useCompany";
 import { Tag, X } from "lucide-react";
 import type { Tag as TagType } from "@prisma/client";
 
 const COLORS = ["#4f7deb", "#3b9e6a", "#f97316", "#dc2626", "#8b5cf6", "#ec4899", "#0891b2", "#d97706"];
 
 export function AddTagModal({ tags }: { tags: TagType[] }) {
+  const slug = useCompanySlug();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [color, setColor] = useState(COLORS[0]);
@@ -15,7 +17,7 @@ export function AddTagModal({ tags }: { tags: TagType[] }) {
     e.preventDefault();
     setLoading(true);
     const fd = new FormData(e.currentTarget);
-    await createTag({ name: fd.get("name") as string, color });
+    await createTag(slug, { name: fd.get("name") as string, color });
     setLoading(false);
     setOpen(false);
   }

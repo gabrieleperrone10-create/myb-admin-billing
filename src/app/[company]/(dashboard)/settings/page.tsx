@@ -4,8 +4,9 @@ import { getCompanySettings } from "@/app/actions/settings";
 import SettingsForm from "./SettingsForm";
 import { UserCog, Shield } from "lucide-react";
 
-export default async function SettingsPage() {
-  const settings = await getCompanySettings();
+export default async function SettingsPage({ params }: { params: Promise<{ company: string }> }) {
+  const { company: slug } = await params;
+  const settings = await getCompanySettings(slug);
 
   return (
     <div className="max-w-[900px]">
@@ -21,7 +22,7 @@ export default async function SettingsPage() {
       {/* Access management shortcuts */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
         <Link
-          href="/settings/users"
+          href={`/${slug}/settings/users`}
           className="flex items-center gap-3 p-4 rounded-[var(--r-lg)] transition-colors"
           style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
         >
@@ -34,7 +35,7 @@ export default async function SettingsPage() {
           </div>
         </Link>
         <Link
-          href="/settings/roles"
+          href={`/${slug}/settings/roles`}
           className="flex items-center gap-3 p-4 rounded-[var(--r-lg)] transition-colors"
           style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
         >

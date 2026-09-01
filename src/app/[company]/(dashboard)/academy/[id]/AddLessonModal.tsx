@@ -1,9 +1,11 @@
 "use client";
 import { useState } from "react";
 import { createLesson } from "@/app/actions/academy";
+import { useCompanySlug } from "@/lib/useCompany";
 import { Plus, X } from "lucide-react";
 
 export function AddLessonModal({ moduleId, courseId }: { moduleId: string; courseId: string }) {
+  const slug = useCompanySlug();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -11,7 +13,7 @@ export function AddLessonModal({ moduleId, courseId }: { moduleId: string; cours
     e.preventDefault();
     setLoading(true);
     const fd = new FormData(e.currentTarget);
-    await createLesson({
+    await createLesson(slug, {
       moduleId,
       courseId,
       title: fd.get("title") as string,

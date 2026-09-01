@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { createEvent } from "@/app/actions/events";
+import { useCompanySlug } from "@/lib/useCompany";
 import { Plus, X } from "lucide-react";
 import { EventFormFields } from "./EventFormFields";
 import type { EventType, RecurrenceType } from "@prisma/client";
@@ -22,13 +23,14 @@ function parseForm(fd: FormData) {
 }
 
 export function CreateEventModal() {
+  const slug = useCompanySlug();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    await createEvent(parseForm(new FormData(e.currentTarget)));
+    await createEvent(slug, parseForm(new FormData(e.currentTarget)));
     setLoading(false);
     setOpen(false);
   }

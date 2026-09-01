@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
 import { createTeamMember } from "@/app/actions/team";
+import { useCompanySlug } from "@/lib/useCompany";
 import { Plus, X } from "lucide-react";
 import type { Tag } from "@prisma/client";
 
 export function AddTeamMemberModal({ tags }: { tags: Tag[] }) {
+  const slug = useCompanySlug();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -13,7 +15,7 @@ export function AddTeamMemberModal({ tags }: { tags: Tag[] }) {
     e.preventDefault();
     setLoading(true);
     const fd = new FormData(e.currentTarget);
-    await createTeamMember({
+    await createTeamMember(slug, {
       name: fd.get("name") as string,
       email: fd.get("email") as string,
       role: (fd.get("role") as string) || undefined,

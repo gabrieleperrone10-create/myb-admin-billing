@@ -9,9 +9,11 @@ type User = { id: string; email: string; name: string; imageUrl: string; created
 export default function UsersClient({
   users,
   roles,
+  slug,
 }: {
   users: User[];
   roles: Role[];
+  slug: string;
 }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [manageUser, setManageUser] = useState<User | null>(null);
@@ -28,7 +30,7 @@ export default function UsersClient({
     if (!form.email.trim()) return;
     setLoading(true);
     setErr("");
-    const res = await createNewUser({
+    const res = await createNewUser(slug, {
       email: form.email.trim(),
       firstName: form.firstName.trim(),
       lastName: form.lastName.trim(),
@@ -44,7 +46,7 @@ export default function UsersClient({
   }
 
   async function handleAssign(userId: string, roleId: string) {
-    await assignRole(userId, roleId);
+    await assignRole(slug, userId, roleId);
     if (manageUser) {
       const role = roles.find(r => r.id === roleId);
       if (role && !manageUser.roles.find(r => r.id === roleId)) {
@@ -54,7 +56,7 @@ export default function UsersClient({
   }
 
   async function handleRemoveRole(userId: string, roleId: string) {
-    await removeRole(userId, roleId);
+    await removeRole(slug, userId, roleId);
     if (manageUser) {
       setManageUser({ ...manageUser, roles: manageUser.roles.filter(r => r.id !== roleId) });
     }
@@ -62,7 +64,7 @@ export default function UsersClient({
 
   async function handleRemoveUser(userId: string) {
     if (!confirm("Eliminare questo utente? L'operazione è irreversibile.")) return;
-    await removeUser(userId);
+    await removeUser(slug, userId);
     setManageUser(null);
   }
 

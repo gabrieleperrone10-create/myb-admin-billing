@@ -1,5 +1,6 @@
 "use client";
 import { updateLesson, addAttachmentLink, addAttachmentFile, deleteAttachment } from "@/app/actions/academy";
+import { useCompanySlug } from "@/lib/useCompany";
 import { useState, useRef } from "react";
 import {
   Eye, EyeOff, Edit2, Save, X, Link2, Paperclip, Trash2,
@@ -29,10 +30,12 @@ export function LessonPlayer({
   lesson,
   accentColor,
   courseId,
+  slug,
 }: {
   lesson: LessonFull;
   accentColor: string;
   courseId: string;
+  slug: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(lesson.title);
@@ -55,7 +58,7 @@ export function LessonPlayer({
 
   async function save() {
     setSaving(true);
-    await updateLesson(lesson.id, courseId, {
+    await updateLesson(slug, lesson.id, courseId, {
       title,
       videoUrl: videoUrl || undefined,
       content: content || undefined,
@@ -69,7 +72,7 @@ export function LessonPlayer({
   async function handleAddLink(e: React.FormEvent) {
     e.preventDefault();
     if (!linkName || !linkUrl) return;
-    const att = await addAttachmentLink({ lessonId: lesson.id, courseId, name: linkName, url: linkUrl });
+    const att = await addAttachmentLink(slug, { lessonId: lesson.id, courseId, name: linkName, url: linkUrl });
     setAttachments(prev => [...prev, att]);
     setLinkName("");
     setLinkUrl("");
@@ -84,7 +87,7 @@ export function LessonPlayer({
     fd.append("lessonId", lesson.id);
     fd.append("courseId", courseId);
     fd.append("file", file);
-    const att = await addAttachmentFile(fd);
+    const att = await addAttachmentFile(slug, fd);
     setAttachments(prev => [...prev, att]);
     setUploading(false);
     if (fileRef.current) fileRef.current.value = "";
@@ -92,7 +95,7 @@ export function LessonPlayer({
 
   async function handleDeleteAttachment(att: LessonAttachment) {
     setDeletingId(att.id);
-    await deleteAttachment(att.id, courseId, att.type === "FILE" ? att.url : undefined);
+    await deleteAttachment(slug, att.id, courseId, att.type === "FILE" ? att.url : undefined);
     setAttachments(prev => prev.filter(a => a.id !== att.id));
     setDeletingId(null);
   }

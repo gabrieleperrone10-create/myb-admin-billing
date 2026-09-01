@@ -8,6 +8,7 @@ import {
   ChevronDown, ChevronUp, X,
 } from "lucide-react";
 import { createObjective, updateKeyResult, addCheckIn, deleteObjective } from "@/app/actions/objectives";
+import { useCompanySlug } from "@/lib/useCompany";
 import { krProgress, objectiveProgress } from "@/lib/objectives";
 import type { ObjectivePeriod, KRType, KRDataSource } from "@prisma/client";
 
@@ -271,6 +272,7 @@ function CardView({ objectives, onRefresh }: { objectives: Obj[]; onRefresh: () 
 }
 
 function ObjectiveCard({ obj, onRefresh }: { obj: Obj; onRefresh: () => void }) {
+  const slug = useCompanySlug();
   const [expanded, setExpanded] = useState(true);
   const [checkInText, setCheckInText] = useState("");
   const [showCheckIn, setShowCheckIn] = useState(false);
@@ -280,18 +282,18 @@ function ObjectiveCard({ obj, onRefresh }: { obj: Obj; onRefresh: () => void }) 
 
   function handleKRToggle(kr: KR) {
     if (kr.type !== "MILESTONE") return;
-    startTransition(async () => { await updateKeyResult(kr.id, { completed: !kr.completed }); onRefresh(); });
+    startTransition(async () => { await updateKeyResult(slug, kr.id, { completed: !kr.completed }); onRefresh(); });
   }
   function handleCheckIn() {
     if (!checkInText.trim()) return;
     startTransition(async () => {
-      await addCheckIn(obj.id, checkInText.trim());
+      await addCheckIn(slug, obj.id, checkInText.trim());
       setCheckInText(""); setShowCheckIn(false); onRefresh();
     });
   }
   function handleDelete() {
     if (!confirm(`Eliminare "${obj.title}"?`)) return;
-    startTransition(async () => { await deleteObjective(obj.id); onRefresh(); });
+    startTransition(async () => { await deleteObjective(slug, obj.id); onRefresh(); });
   }
 
   return (
@@ -685,6 +687,7 @@ function WeeklyPlanner({ objectives, year, weekOffset, onOffsetChange }: { objec
 
 /* ── NEW OBJECTIVE MODAL ────────────────────────────────────────────── */
 function NewObjectiveModal({ year, onClose, onCreated }: { year: number; onClose: () => void; onCreated: () => void }) {
+  const slug = useCompanySlug();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [emoji, setEmoji] = useState("🎯");
@@ -701,7 +704,7 @@ function NewObjectiveModal({ year, onClose, onCreated }: { year: number; onClose
   function handleSubmit() {
     if (!title.trim()) return;
     startTransition(async () => {
-      await createObjective({
+      await createObjective(slug, {
         title: title.trim(), description: description.trim() || undefined,
         emoji, color, period, year,
         keyResults: krs.filter(kr => kr.title.trim()).map(kr => ({

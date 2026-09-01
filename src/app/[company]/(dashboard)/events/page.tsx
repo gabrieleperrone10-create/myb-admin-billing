@@ -1,11 +1,13 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { CalendarDays } from "lucide-react";
 import { CreateEventModal } from "./CreateEventModal";
 import { EventCard } from "./EventCard";
 
-export default async function EventsPage() {
-  const events = await prisma.event.findMany({
+export default async function EventsPage({ params }: { params: Promise<{ company: string }> }) {
+  const { company: slug } = await params;
+  const { db } = await requireCompany(slug);
+  const events = await db.event.findMany({
     include: { rsvps: true },
     orderBy: { date: "asc" },
   });

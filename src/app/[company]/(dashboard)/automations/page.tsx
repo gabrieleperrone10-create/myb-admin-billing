@@ -1,5 +1,5 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { AutomationToggle } from "./AutomationToggle";
 import { Bell, CalendarCheck, Clock, FileBarChart2, Mail, RefreshCw, ShieldAlert, Zap } from "lucide-react";
 import { AutomationConfigInput } from "./AutomationConfigInput";
@@ -96,8 +96,10 @@ const CATEGORY_COLORS: Record<string, string> = {
   contratti: "#3b9e6a",
 };
 
-export default async function AutomationsPage() {
-  const stored = await prisma.automation.findMany();
+export default async function AutomationsPage({ params }: { params: Promise<{ company: string }> }) {
+  const { company: slug } = await params;
+  const { db } = await requireCompany(slug);
+  const stored = await db.automation.findMany();
   const stateMap = Object.fromEntries(stored.map(a => [a.type, a]));
 
   const categories = ["fatture", "contratti", "report"] as const;

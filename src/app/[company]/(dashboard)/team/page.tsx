@@ -1,17 +1,19 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { Users2, Tag, Plus, Mail, UserCheck, UserX } from "lucide-react";
 import Link from "next/link";
 import { AddTeamMemberModal } from "./AddTeamMemberModal";
 import { AddTagModal } from "./AddTagModal";
 
-export default async function TeamPage() {
+export default async function TeamPage({ params }: { params: Promise<{ company: string }> }) {
+  const { company: slug } = await params;
+  const { db } = await requireCompany(slug);
   const [members, tags] = await Promise.all([
-    prisma.teamMember.findMany({
+    db.teamMember.findMany({
       include: { tags: { include: { tag: true } }, progress: true },
       orderBy: { name: "asc" },
     }),
-    prisma.tag.findMany({ orderBy: { name: "asc" } }),
+    db.tag.findMany({ orderBy: { name: "asc" } }),
   ]);
 
   const active = members.filter(m => m.active);
@@ -88,7 +90,7 @@ export default async function TeamPage() {
                     {group.list.map(member => (
                       <Link
                         key={member.id}
-                        href={`/team/${member.id}`}
+                        href={`/${slug}/team/${member.id}`}
                         className="flex items-center gap-4 p-4 rounded-[8px] transition-colors"
                         style={{ backgroundColor: "#fff", border: "1px solid var(--border)" }}
                       >

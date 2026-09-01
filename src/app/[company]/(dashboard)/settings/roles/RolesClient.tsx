@@ -10,7 +10,7 @@ type RoleWithCount = AppRole & {
   _count: { userRoles: number };
 };
 
-export default function RolesClient({ roles }: { roles: RoleWithCount[] }) {
+export default function RolesClient({ roles, slug }: { roles: RoleWithCount[]; slug: string }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
@@ -22,7 +22,7 @@ export default function RolesClient({ roles }: { roles: RoleWithCount[] }) {
     if (!name.trim()) return;
     setLoading(true);
     setErr("");
-    const res = await createRole({ name: name.trim(), description: desc.trim() || undefined, color });
+    const res = await createRole(slug, { name: name.trim(), description: desc.trim() || undefined, color });
     setLoading(false);
     if (res.ok) {
       setName(""); setDesc(""); setColor("#4f7deb");
@@ -34,7 +34,7 @@ export default function RolesClient({ roles }: { roles: RoleWithCount[] }) {
 
   async function handleDelete(id: string, name: string) {
     if (!confirm(`Eliminare il ruolo "${name}"? Gli utenti con questo ruolo perderanno questi permessi.`)) return;
-    const res = await deleteRole(id);
+    const res = await deleteRole(slug, id);
     if (!res.ok) alert(res.error);
   }
 
@@ -88,7 +88,7 @@ export default function RolesClient({ roles }: { roles: RoleWithCount[] }) {
             {/* Actions */}
             <div className="flex items-center gap-1.5 shrink-0">
               <Link
-                href={`/settings/roles/${role.id}`}
+                href={`/${slug}/settings/roles/${role.id}`}
                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-[var(--r-md)] text-[12px] font-medium"
                 style={{ border: "1px solid var(--border)", color: "var(--fg-2)", minHeight: "unset" }}
               >

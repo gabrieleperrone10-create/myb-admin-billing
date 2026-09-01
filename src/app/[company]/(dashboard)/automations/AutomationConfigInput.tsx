@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { updateAutomationConfig } from "@/app/actions/automations";
+import { useCompanySlug } from "@/lib/useCompany";
 import { Check } from "lucide-react";
 
 interface Props {
@@ -13,13 +14,14 @@ interface Props {
 }
 
 export function AutomationConfigInput({ type, label, field, currentValue, placeholder }: Props) {
+  const slug = useCompanySlug();
   const [value, setValue] = useState(currentValue);
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const save = () => {
     startTransition(async () => {
-      await updateAutomationConfig(type, { [field]: value });
+      await updateAutomationConfig(slug, type, { [field]: value });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     });

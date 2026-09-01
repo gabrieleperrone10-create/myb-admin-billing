@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { createModule } from "@/app/actions/academy";
+import { useCompanySlug } from "@/lib/useCompany";
 import { Folder, X } from "lucide-react";
 
 export function AddModuleModal({
@@ -14,6 +15,7 @@ export function AddModuleModal({
   label?: string;
   title?: string;
 }) {
+  const slug = useCompanySlug();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -21,7 +23,7 @@ export function AddModuleModal({
     e.preventDefault();
     setLoading(true);
     const fd = new FormData(e.currentTarget);
-    await createModule({ courseId, parentId, title: fd.get("title") as string });
+    await createModule(slug, { courseId, parentId, title: fd.get("title") as string });
     setLoading(false);
     setOpen(false);
   }

@@ -1,11 +1,13 @@
 "use client";
 import { useState } from "react";
 import { createFolder } from "@/app/actions/sop";
+import { useCompanySlug } from "@/lib/useCompany";
 import { FolderPlus, X } from "lucide-react";
 
 const COLORS = ["#4f7deb", "#3b9e6a", "#f97316", "#dc2626", "#8b5cf6", "#ec4899", "#0891b2", "#d97706"];
 
 export function CreateFolderModal() {
+  const slug = useCompanySlug();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [color, setColor] = useState(COLORS[0]);
@@ -14,7 +16,7 @@ export function CreateFolderModal() {
     e.preventDefault();
     setLoading(true);
     const fd = new FormData(e.currentTarget);
-    await createFolder({ name: fd.get("name") as string, color });
+    await createFolder(slug, { name: fd.get("name") as string, color });
     setLoading(false);
     setOpen(false);
   }

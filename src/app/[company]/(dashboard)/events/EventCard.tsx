@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { deleteEvent } from "@/app/actions/events";
+import { useCompanySlug } from "@/lib/useCompany";
 import { EditEventModal } from "./EditEventModal";
 import {
   CalendarDays, MapPin, Video, Radio, BookOpen, Film,
@@ -51,6 +52,7 @@ function fmtDate(d: Date) {
 }
 
 export function EventCard({ event, past = false }: { event: EventWithRsvps; past?: boolean }) {
+  const slug = useCompanySlug();
   const [deleting, setDeleting] = useState(false);
   const Icon = TYPE_ICONS[event.type];
   const color = TYPE_COLORS[event.type];
@@ -60,7 +62,7 @@ export function EventCard({ event, past = false }: { event: EventWithRsvps; past
   async function handleDelete() {
     if (!confirm(`Eliminare "${event.title}"?`)) return;
     setDeleting(true);
-    await deleteEvent(event.id);
+    await deleteEvent(slug, event.id);
   }
 
   return (

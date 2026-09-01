@@ -1,15 +1,17 @@
 "use client";
 import { useState } from "react";
 import { deleteSop } from "@/app/actions/sop";
+import { useCompanySlug } from "@/lib/useCompany";
 import { Trash2 } from "lucide-react";
 
 export function DeleteSopButton({ sopId, sopTitle }: { sopId: string; sopTitle: string }) {
+  const slug = useCompanySlug();
   const [loading, setLoading] = useState(false);
 
   async function handle() {
     if (!confirm(`Eliminare "${sopTitle}"?`)) return;
     setLoading(true);
-    await deleteSop(sopId);
+    await deleteSop(slug, sopId);
   }
 
   return (

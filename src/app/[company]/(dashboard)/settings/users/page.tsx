@@ -3,8 +3,9 @@ import { listUsers } from "@/app/actions/users";
 import { getRoles } from "@/app/actions/roles";
 import UsersClient from "./UsersClient";
 
-export default async function UsersPage() {
-  const [users, roles] = await Promise.all([listUsers(), getRoles()]);
+export default async function UsersPage({ params }: { params: Promise<{ company: string }> }) {
+  const { company: slug } = await params;
+  const [users, roles] = await Promise.all([listUsers(slug), getRoles(slug)]);
 
   return (
     <div className="max-w-[900px]">
@@ -19,6 +20,7 @@ export default async function UsersPage() {
       <UsersClient
         users={users}
         roles={roles.map(r => ({ id: r.id, name: r.name, color: r.color }))}
+        slug={slug}
       />
     </div>
   );

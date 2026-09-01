@@ -5,15 +5,15 @@ import RoleEditorClient from "./RoleEditorClient";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 
-export default async function RoleEditorPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const role = await getRoleById(id);
+export default async function RoleEditorPage({ params }: { params: Promise<{ company: string; id: string }> }) {
+  const { company: slug, id } = await params;
+  const role = await getRoleById(slug, id);
   if (!role) notFound();
 
   return (
     <div className="max-w-[860px]">
       <Link
-        href="/settings/roles"
+        href={`/${slug}/settings/roles`}
         className="inline-flex items-center gap-1 text-[13px] mb-5"
         style={{ color: "var(--fg-3)", minHeight: "unset" }}
       >
@@ -41,7 +41,7 @@ export default async function RoleEditorPage({ params }: { params: Promise<{ id:
         </p>
       </div>
 
-      <RoleEditorClient role={role} />
+      <RoleEditorClient role={role} slug={slug} />
     </div>
   );
 }

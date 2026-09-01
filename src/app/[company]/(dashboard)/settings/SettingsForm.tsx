@@ -4,11 +4,12 @@ import { useTransition, useState, useRef } from "react";
 import { Input, Textarea } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { saveCompanySettings } from "@/app/actions/settings";
-import type { CompanySettings } from "@prisma/client";
+import { useCompanySlug } from "@/lib/useCompany";
+import type { Company } from "@prisma/client";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-interface Props { settings: CompanySettings }
+interface Props { settings: Company }
 
 const sections = [
   { id: "azienda",   label: "Azienda" },
@@ -19,6 +20,7 @@ const sections = [
 ];
 
 export default function SettingsForm({ settings }: Props) {
+  const slug = useCompanySlug();
   const [pending, startTransition] = useTransition();
   const [saved, setSaved] = useState(false);
   const [active, setActive] = useState("azienda");
@@ -31,7 +33,7 @@ export default function SettingsForm({ settings }: Props) {
 
   const action = (formData: FormData) => {
     startTransition(async () => {
-      await saveCompanySettings(formData);
+      await saveCompanySettings(slug, formData);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     });

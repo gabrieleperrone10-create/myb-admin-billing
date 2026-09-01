@@ -1,11 +1,13 @@
 "use client";
 import { useState } from "react";
 import { createSop } from "@/app/actions/sop";
+import { useCompanySlug } from "@/lib/useCompany";
 import { Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { SopFolder, SopTag } from "@prisma/client";
 
 export function CreateSopModal({ folders, tags }: { folders: SopFolder[]; tags: SopTag[] }) {
+  const slug = useCompanySlug();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -19,7 +21,7 @@ export function CreateSopModal({ folders, tags }: { folders: SopFolder[]; tags: 
     setLoading(true);
     const fd = new FormData(e.currentTarget);
     const rolesRaw = (fd.get("roles") as string).trim();
-    const sop = await createSop({
+    const sop = await createSop(slug, {
       title: fd.get("title") as string,
       folderId: (fd.get("folderId") as string) || undefined,
       roles: rolesRaw ? rolesRaw.split(",").map(r => r.trim()).filter(Boolean) : [],
@@ -27,7 +29,7 @@ export function CreateSopModal({ folders, tags }: { folders: SopFolder[]; tags: 
     });
     setLoading(false);
     setOpen(false);
-    router.push(`/sop/${sop.id}`);
+    router.push(`/${slug}/sop/${sop.id}`);
   }
 
   return (

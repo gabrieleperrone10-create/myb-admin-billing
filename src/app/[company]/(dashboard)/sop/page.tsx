@@ -1,23 +1,27 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { FileText, FolderOpen, Search, Tag, Plus } from "lucide-react";
 import Link from "next/link";
 import { SopAiChat } from "@/components/SopAiChat";
 import { CreateFolderModal } from "./CreateFolderModal";
 import { CreateSopModal } from "./CreateSopModal";
 import { DeleteSopButton } from "./DeleteSopButton";
+import type { CompanyDb } from "@/lib/db";
 
 export default async function SopPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ company: string }>;
   searchParams: Promise<{ folder?: string; tag?: string; q?: string }>;
 }) {
-  const { folder: folderId, tag: tagId, q } = await searchParams;
+  const [{ company: slug }, { folder: folderId, tag: tagId, q }] = await Promise.all([params, searchParams]);
+  const { db } = await requireCompany(slug);
 
   const [folders, tags, sops] = await Promise.all([
-    prisma.sopFolder.findMany({ orderBy: { order: "asc" } }),
-    prisma.sopTag.findMany({ orderBy: { name: "asc" } }),
-    prisma.sop.findMany({
+    db.sopFolder.findMany({ orderBy: { order: "asc" } }),
+    db.sopTag.findMany({ orderBy: { name: "asc" } }),
+    db.sop.findMany({
       where: {
         ...(folderId ? { folderId } : {}),
         ...(tagId ? { tags: { some: { tagId } } } : {}),
@@ -59,7 +63,7 @@ export default async function SopPage({
         {/* Horizontal filter chips */}
         <div className="flex gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
           <Link
-            href="/sop"
+            href={`/${slug}/sop`}
             className="px-3 py-1.5 rounded-full text-[12px] font-medium border whitespace-nowrap shrink-0 transition-colors"
             style={{
               backgroundColor: !folderId && !tagId ? "var(--fg)" : "var(--surface)",
@@ -73,7 +77,7 @@ export default async function SopPage({
           {folders.map(folder => (
             <Link
               key={folder.id}
-              href={`/sop?folder=${folder.id}`}
+              href={`/${slug}/sop?folder=${folder.id}`}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium border whitespace-nowrap shrink-0 transition-colors"
               style={{
                 backgroundColor: folderId === folder.id ? folder.color : "var(--surface)",
@@ -89,7 +93,7 @@ export default async function SopPage({
           {tags.map(tag => (
             <Link
               key={tag.id}
-              href={tagId === tag.id ? "/sop" : `/sop?tag=${tag.id}`}
+              href={tagId === tag.id ? `/${slug}/sop` : `/${slug}/sop?tag=${tag.id}`}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-medium border whitespace-nowrap shrink-0 transition-colors"
               style={{
                 backgroundColor: tagId === tag.id ? tag.color : "var(--surface)",
@@ -105,7 +109,7 @@ export default async function SopPage({
         </div>
 
         {/* SOP list */}
-        <SopList sops={sops} q={q} folders={folders} tags={tags} mobile />
+        <SopList sops={sops} q={q} folders={folders} tags={tags} slug={slug} mobile />
       </div>
 
       {/* ── Desktop layout ─────────────────────────────────────────── */}
@@ -122,7 +126,7 @@ export default async function SopPage({
             </div>
             <div className="space-y-0.5">
               <Link
-                href="/sop"
+                href={`/${slug}/sop`}
                 className="flex items-center gap-2 px-2.5 py-1.5 rounded-[var(--r-md)] text-[13px] transition-colors"
                 style={{
                   backgroundColor: !folderId && !tagId ? "var(--subtle)" : "transparent",
@@ -137,7 +141,7 @@ export default async function SopPage({
               {folders.map(folder => (
                 <Link
                   key={folder.id}
-                  href={`/sop?folder=${folder.id}`}
+                  href={`/${slug}/sop?folder=${folder.id}`}
                   className="flex items-center gap-2 px-2.5 py-1.5 rounded-[var(--r-md)] text-[13px] transition-colors"
                   style={{
                     backgroundColor: folderId === folder.id ? folder.color + "15" : "transparent",
@@ -162,7 +166,7 @@ export default async function SopPage({
                 {tags.map(tag => (
                   <Link
                     key={tag.id}
-                    href={tagId === tag.id ? "/sop" : `/sop?tag=${tag.id}`}
+                    href={tagId === tag.id ? `/${slug}/sop` : `/${slug}/sop?tag=${tag.id}`}
                     className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full badge"
                     style={{
                       backgroundColor: tagId === tag.id ? tag.color : tag.color + "18",
@@ -198,7 +202,7 @@ export default async function SopPage({
             </div>
             <CreateSopModal folders={folders} tags={tags} />
           </div>
-          <SopList sops={sops} q={q} folders={folders} tags={tags} />
+          <SopList sops={sops} q={q} folders={folders} tags={tags} slug={slug} />
         </div>
       </div>
 
@@ -209,7 +213,7 @@ export default async function SopPage({
 
 // ── Shared SOP list component ───────────────────────────────────────────────
 
-type SopItem = Awaited<ReturnType<typeof prisma.sop.findMany>>[number] & {
+type SopItem = Awaited<ReturnType<CompanyDb["sop"]["findMany"]>>[number] & {
   folder: { id: string; name: string; color: string } | null;
   tags: { tag: { id: string; name: string; color: string } }[];
   attachments: { id: string }[];
@@ -220,12 +224,14 @@ function SopList({
   q,
   folders,
   tags,
+  slug,
   mobile = false,
 }: {
   sops: SopItem[];
   q?: string;
   folders: { id: string; name: string; color: string }[];
   tags: { id: string; name: string; color: string }[];
+  slug: string;
   mobile?: boolean;
 }) {
   if (sops.length === 0) {
@@ -259,7 +265,7 @@ function SopList({
           <div className="flex-1 min-w-0">
             <div className="flex items-start gap-2 flex-wrap">
               <Link
-                href={`/sop/${sop.id}`}
+                href={`/${slug}/sop/${sop.id}`}
                 className="text-[14px] font-semibold hover:underline"
                 style={{ color: "var(--fg)", minHeight: "unset", lineHeight: 1.3 }}
               >
@@ -287,7 +293,7 @@ function SopList({
             {mobile && (
               <div className="flex items-center gap-2 mt-2">
                 <Link
-                  href={`/sop/${sop.id}`}
+                  href={`/${slug}/sop/${sop.id}`}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-[var(--r-md)] text-[12px] font-medium"
                   style={{ border: "1px solid var(--border)", color: "var(--fg-2)", minHeight: "unset" }}
                 >
@@ -302,7 +308,7 @@ function SopList({
           {!mobile && (
             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
               <Link
-                href={`/sop/${sop.id}`}
+                href={`/${slug}/sop/${sop.id}`}
                 className="px-2.5 py-1 rounded-[var(--r-md)] text-[12px] font-medium"
                 style={{ border: "1px solid var(--border)", color: "var(--fg-2)", minHeight: "unset" }}
               >

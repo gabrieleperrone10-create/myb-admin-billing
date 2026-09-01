@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
+import type { CompanyDb } from "@/lib/db";
+import type { Company } from "@prisma/client";
 import { formatCurrency } from "@/lib/utils";
 import { KpiCard } from "@/components/ui/KpiCard";
 import PeriodFilter from "./PeriodFilter";
@@ -79,7 +81,7 @@ function fmtPct(n: number): string {
 
 // ── Data ──────────────────────────────────────────────────────────────────────
 
-async function getData(period: string, from?: string, to?: string) {
+async function getData(db: CompanyDb, companyId: string, company: Company, period: string, from?: string, to?: string) {
   const { start, end } = getDateRange(period, from, to);
 
   const duration  = end.getTime() - start.getTime();
@@ -105,52 +107,56 @@ async function getData(period: string, from?: string, to?: string) {
     methodRaw, statusRaw,
     activeContracts,
     volumeVenditeRaw,
-    companySettings,
     expByCategoryRaw,
     activeObjectives,
   ] = await Promise.all([
-    prisma.payment.aggregate({ where: { paidAt: { gte: start, lte: end }, method: { not: "STRIPE" } }, _sum: { amount: true } }),
-    prisma.payment.aggregate({ where: { paidAt: { gte: prevStart, lte: prevEnd }, method: { not: "STRIPE" } }, _sum: { amount: true } }),
+    db.payment.aggregate({ where: { paidAt: { gte: start, lte: end }, method: { not: "STRIPE" } }, _sum: { amount: true } }),
+    db.payment.aggregate({ where: { paidAt: { gte: prevStart, lte: prevEnd }, method: { not: "STRIPE" } }, _sum: { amount: true } }),
 
-    prisma.expense.aggregate({ where: { date: { gte: start, lte: end } }, _sum: { amount: true } }),
-    prisma.expense.aggregate({ where: { date: { gte: prevStart, lte: prevEnd } }, _sum: { amount: true } }),
+    db.expense.aggregate({ where: { date: { gte: start, lte: end } }, _sum: { amount: true } }),
+    db.expense.aggregate({ where: { date: { gte: prevStart, lte: prevEnd } }, _sum: { amount: true } }),
 
-    prisma.invoice.findMany({ where: { status: "OVERDUE" }, include: { client: true }, orderBy: { dueDate: "asc" } }),
-    prisma.invoice.aggregate({ where: { status: "SENT" }, _sum: { amount: true }, _count: true }),
-    prisma.invoice.aggregate({ where: { issueDate: { gte: start, lte: end } }, _sum: { amount: true }, _count: true }),
+    db.invoice.findMany({ where: { status: "OVERDUE" }, include: { client: true }, orderBy: { dueDate: "asc" } }),
+    db.invoice.aggregate({ where: { status: "SENT" }, _sum: { amount: true }, _count: true }),
+    db.invoice.aggregate({ where: { issueDate: { gte: start, lte: end } }, _sum: { amount: true }, _count: true }),
 
-    prisma.$queryRaw<{ period: string; total: number }[]>`
+    // Bucketing per TO_CHAR: nessun equivalente Prisma, resta raw. Filtro
+    // companyId esplicito perche' $queryRaw non passa dall'estensione.
+    db.$queryRaw<{ period: string; total: number }[]>`
       SELECT TO_CHAR("paidAt",'YYYY-MM') as period, SUM(amount) as total
-      FROM "Payment" WHERE "paidAt">=${chart12Start} AND method != 'STRIPE'
+      FROM "Payment" WHERE "companyId" = ${companyId} AND "paidAt">=${chart12Start} AND method != 'STRIPE'
       GROUP BY period ORDER BY period`,
 
-    prisma.$queryRaw<{ period: string; total: number }[]>`
+    db.$queryRaw<{ period: string; total: number }[]>`
       SELECT TO_CHAR(date,'YYYY-MM') as period, SUM(amount) as total
-      FROM "Expense" WHERE date>=${chart12Start}
+      FROM "Expense" WHERE "companyId" = ${companyId} AND date>=${chart12Start}
       GROUP BY period ORDER BY period`,
 
-    prisma.$queryRaw<{ period: string; total: number }[]>`
+    db.$queryRaw<{ period: string; total: number }[]>`
       SELECT TO_CHAR("paidAt",'YYYY-MM-DD') as period, SUM(amount) as total
-      FROM "Payment" WHERE "paidAt">=${chart30Start} AND method != 'STRIPE'
+      FROM "Payment" WHERE "companyId" = ${companyId} AND "paidAt">=${chart30Start} AND method != 'STRIPE'
       GROUP BY period ORDER BY period`,
 
-    prisma.$queryRaw<{ method: string; total: number }[]>`
-      SELECT method, SUM(amount) as total FROM "Payment"
-      WHERE "paidAt">=${start} AND "paidAt"<=${end} GROUP BY method`,
+    // groupBy Prisma normale al posto del raw: gia' scoped dall'estensione.
+    db.payment.groupBy({
+      by: ["method"],
+      where: { paidAt: { gte: start, lte: end } },
+      _sum: { amount: true },
+    }),
 
-    prisma.$queryRaw<{ status: string; cnt: bigint; total: number }[]>`
-      SELECT status, COUNT(*) as cnt, SUM(amount) as total FROM "Invoice"
-      WHERE "issueDate">=${start} AND "issueDate"<=${end} GROUP BY status`,
+    db.invoice.groupBy({
+      by: ["status"],
+      where: { issueDate: { gte: start, lte: end } },
+      _count: true,
+      _sum: { amount: true },
+    }),
 
-    prisma.contract.findMany({ where: { active: true, type: "RECURRING" }, select: { amount: true } }),
+    db.contract.findMany({ where: { active: true, type: "RECURRING" }, select: { amount: true } }),
 
     // Volume vendite: nuovi contratti firmati nel periodo
-    prisma.contract.aggregate({ where: { startDate: { gte: start, lte: end } }, _sum: { amount: true } }),
+    db.contract.aggregate({ where: { startDate: { gte: start, lte: end } }, _sum: { amount: true } }),
 
-    // Saldo CC
-    prisma.companySettings.findUnique({ where: { id: "singleton" }, select: { bankBalance: true, bankBalanceAt: true } }),
-
-    prisma.expense.groupBy({
+    db.expense.groupBy({
       by: ["category"],
       where: { date: { gte: start, lte: end } },
       _sum: { amount: true },
@@ -161,7 +167,7 @@ async function getData(period: string, from?: string, to?: string) {
       const m = new Date().getMonth();
       const q = `Q${Math.ceil((m + 1) / 3)}` as "Q1"|"Q2"|"Q3"|"Q4";
       const mKey = `M${m + 1}` as never;
-      return prisma.objective.findMany({
+      return db.objective.findMany({
         where: { period: { in: [q, "ANNUAL", mKey] } },
         include: { keyResults: { orderBy: { createdAt: "asc" } } },
         orderBy: { createdAt: "desc" },
@@ -190,20 +196,20 @@ async function getData(period: string, from?: string, to?: string) {
   const overdueTotal    = overdueInvoices.reduce((s: number, inv) => s + inv.amount, 0);
   const volumeVendite   = volumeVenditeRaw._sum.amount ?? 0;
 
-  const bankBalance   = companySettings?.bankBalance ?? null;
-  const bankBalanceAt = companySettings?.bankBalanceAt ?? null;
+  const bankBalance   = company.bankBalance ?? null;
+  const bankBalanceAt = company.bankBalanceAt ?? null;
   let estimatedBalance: number | null = null;
   if (bankBalance !== null && bankBalanceAt !== null) {
     const [incomeSince, expSince] = await Promise.all([
-      prisma.payment.aggregate({ where: { paidAt: { gte: bankBalanceAt }, method: { not: "STRIPE" } }, _sum: { amount: true } }),
-      prisma.expense.aggregate({ where: { date: { gte: bankBalanceAt } }, _sum: { amount: true } }),
+      db.payment.aggregate({ where: { paidAt: { gte: bankBalanceAt }, method: { not: "STRIPE" } }, _sum: { amount: true } }),
+      db.expense.aggregate({ where: { date: { gte: bankBalanceAt } }, _sum: { amount: true } }),
     ]);
     estimatedBalance = bankBalance + (incomeSince._sum.amount ?? 0) - (expSince._sum.amount ?? 0);
   }
 
   const statusMap: Record<string, { count: number; amount: number }> = {};
   for (const r of statusRaw) {
-    statusMap[r.status] = { count: Number(r.cnt), amount: Number(r.total) };
+    statusMap[r.status] = { count: r._count, amount: r._sum.amount ?? 0 };
   }
 
   return {
@@ -232,7 +238,7 @@ async function getData(period: string, from?: string, to?: string) {
     spark6Rev,
     spark6Exp,
     spark6Prof,
-    paymentMethodRevenue: methodRaw.map(r => ({ method: r.method, amount: Number(r.total) })),
+    paymentMethodRevenue: methodRaw.map(r => ({ method: r.method, amount: r._sum.amount ?? 0 })),
     invoiceStatus:        statusMap,
     monthlyForecast,
     volumeVendite,
@@ -256,13 +262,16 @@ const STATUS_CFG: Record<string, { label: string; color: string }> = {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ company: string }>;
   searchParams: Promise<{ period?: string; from?: string; to?: string }>;
 }) {
-  const sp     = await searchParams;
+  const [{ company: slug }, sp] = await Promise.all([params, searchParams]);
+  const { db, companyId, company } = await requireCompany(slug);
   const period = sp.period ?? "month";
-  const data   = await getData(period, sp.from, sp.to);
+  const data   = await getData(db, companyId, company, period, sp.from, sp.to);
 
   const now      = new Date();
   const hour     = now.getHours();
@@ -309,7 +318,7 @@ export default async function DashboardPage({
       </div>
 
       {/* Obiettivi attivi */}
-      <OkrWidget objectives={data.activeObjectives} />
+      <OkrWidget objectives={data.activeObjectives} slug={slug} />
 
       {/* Saldo CC + Volume vendite */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -405,7 +414,7 @@ export default async function DashboardPage({
                 </span>
               </p>
             </div>
-            <Link href="/invoices?status=OVERDUE" className="text-[12px] font-medium" style={{ color: "var(--info)" }}>
+            <Link href={`/${slug}/invoices?status=OVERDUE`} className="text-[12px] font-medium" style={{ color: "var(--info)" }}>
               Tutte →
             </Link>
           </div>
@@ -419,7 +428,7 @@ export default async function DashboardPage({
                 return (
                   <div key={inv.id} className="flex items-center justify-between py-2.5" style={{ borderBottom: "1px solid var(--subtle)" }}>
                     <div>
-                      <Link href={`/invoices/${inv.id}`} className="text-[13px] font-medium hover:underline" style={{ color: "var(--fg)" }}>
+                      <Link href={`/${slug}/invoices/${inv.id}`} className="text-[13px] font-medium hover:underline" style={{ color: "var(--fg)" }}>
                         {inv.client.name}
                       </Link>
                       <p className="font-mono text-[11px]" style={{ color: "var(--fg-3)" }}>{inv.number}</p>
@@ -446,7 +455,7 @@ export default async function DashboardPage({
               <span className="w-2 h-2 rounded-full" style={{ backgroundColor: C.danger }} />
               <p className="text-[13px] font-medium" style={{ color: "var(--fg)" }}>Spese per categoria</p>
             </div>
-            <Link href="/expenses" className="text-[12px] font-medium" style={{ color: "var(--info)" }}>
+            <Link href={`/${slug}/expenses`} className="text-[12px] font-medium" style={{ color: "var(--info)" }}>
               Tutte →
             </Link>
           </div>
@@ -592,7 +601,7 @@ type ObjWithKRs = {
   keyResults: { type: KRType; target: number|null; current: number|null; completed: boolean }[];
 };
 
-function OkrWidget({ objectives }: { objectives: ObjWithKRs[] }) {
+function OkrWidget({ objectives, slug }: { objectives: ObjWithKRs[]; slug: string }) {
   if (objectives.length === 0) return null;
 
   return (
@@ -602,7 +611,7 @@ function OkrWidget({ objectives }: { objectives: ObjWithKRs[] }) {
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: C.info }} />
           <p className="text-[13px] font-medium" style={{ color: "var(--fg)" }}>Obiettivi attivi</p>
         </div>
-        <Link href="/objectives" className="text-[12px] font-medium" style={{ color: "var(--info)" }}>
+        <Link href={`/${slug}/objectives`} className="text-[12px] font-medium" style={{ color: "var(--info)" }}>
           Tutti →
         </Link>
       </div>
@@ -616,7 +625,7 @@ function OkrWidget({ objectives }: { objectives: ObjWithKRs[] }) {
           const dash = (pct / 100) * circumference;
 
           return (
-            <Link key={obj.id} href="/objectives" className="flex items-center gap-3 p-3 rounded-[var(--r-md)] transition-colors hover:bg-[var(--subtle)]" style={{ border: "1px solid var(--subtle)" }}>
+            <Link key={obj.id} href={`/${slug}/objectives`} className="flex items-center gap-3 p-3 rounded-[var(--r-md)] transition-colors hover:bg-[var(--subtle)]" style={{ border: "1px solid var(--subtle)" }}>
               {/* Progress ring */}
               <div className="shrink-0 relative" style={{ width: 44, height: 44 }}>
                 <svg width="44" height="44" style={{ transform: "rotate(-90deg)" }}>

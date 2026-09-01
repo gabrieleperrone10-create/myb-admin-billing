@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Eye, EyeOff, Pencil, Check, X } from "lucide-react";
 import { updateBankBalance } from "@/app/actions/settings";
+import { useCompanySlug } from "@/lib/useCompany";
 import { formatCurrency } from "@/lib/utils";
 
 export function BankBalanceCard({
@@ -14,6 +15,7 @@ export function BankBalanceCard({
   bankBalanceAt: Date | null;
   estimatedBalance: number | null;
 }) {
+  const slug = useCompanySlug();
   const [visible, setVisible] = useState(false);
   const [editing, setEditing] = useState(false);
   const [inputVal, setInputVal] = useState(bankBalance !== null ? String(bankBalance) : "");
@@ -25,7 +27,7 @@ export function BankBalanceCard({
     const parsed = parseFloat(inputVal.replace(",", "."));
     if (isNaN(parsed)) return;
     startTransition(async () => {
-      await updateBankBalance(parsed);
+      await updateBankBalance(slug, parsed);
       setEditing(false);
     });
   }

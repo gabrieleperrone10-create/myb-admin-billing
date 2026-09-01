@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { updateEvent } from "@/app/actions/events";
+import { useCompanySlug } from "@/lib/useCompany";
 import { Edit2, X } from "lucide-react";
 import { EventFormFields } from "./EventFormFields";
 import type { Event, EventRsvp, EventType, RecurrenceType } from "@prisma/client";
@@ -23,13 +24,14 @@ function parseForm(fd: FormData) {
 }
 
 export function EditEventModal({ event }: { event: EventWithRsvps }) {
+  const slug = useCompanySlug();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
-    await updateEvent(event.id, parseForm(new FormData(e.currentTarget)));
+    await updateEvent(slug, event.id, parseForm(new FormData(e.currentTarget)));
     setLoading(false);
     setOpen(false);
   }

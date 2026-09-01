@@ -1,14 +1,16 @@
 export const dynamic = "force-dynamic";
-import { prisma } from "@/lib/prisma";
+import { requireCompany } from "@/lib/company";
 import { GraduationCap, BookOpen, Lock, Plus } from "lucide-react";
 import Link from "next/link";
 import { CreateCategoryModal } from "./CreateCategoryModal";
 import { CreateCourseModal } from "./CreateCourseModal";
 import { DeleteCourseButton, EditCourseButton } from "./CourseActions";
 
-export default async function AcademyPage() {
+export default async function AcademyPage({ params }: { params: Promise<{ company: string }> }) {
+  const { company: slug } = await params;
+  const { db } = await requireCompany(slug);
   const [categories, totalMembers] = await Promise.all([
-    prisma.courseCategory.findMany({
+    db.courseCategory.findMany({
       include: {
         requiredTags: { include: { tag: true } },
         courses: {
@@ -22,7 +24,7 @@ export default async function AcademyPage() {
       },
       orderBy: { order: "asc" },
     }),
-    prisma.teamMember.count({ where: { active: true } }),
+    db.teamMember.count({ where: { active: true } }),
   ]);
 
   return (
@@ -107,7 +109,7 @@ export default async function AcademyPage() {
                           <EditCourseButton courseId={course.id} defaults={{ title: course.title, description: course.description }} />
                           <DeleteCourseButton courseId={course.id} courseTitle={course.title} />
                         <Link
-                          href={`/academy/${course.id}`}
+                          href={`/${slug}/academy/${course.id}`}
                           className="rounded-[8px] overflow-hidden transition-shadow hover:shadow-md block"
                           style={{ border: "1px solid var(--border)", backgroundColor: "#fff" }}
                         >

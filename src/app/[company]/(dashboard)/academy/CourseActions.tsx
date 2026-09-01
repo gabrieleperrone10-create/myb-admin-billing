@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
 import { deleteCourse, updateCourse } from "@/app/actions/academy";
+import { useCompanySlug } from "@/lib/useCompany";
 import { Trash2, Edit2, X, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export function DeleteCourseButton({ courseId, courseTitle }: { courseId: string; courseTitle: string }) {
+  const slug = useCompanySlug();
   const [deleting, setDeleting] = useState(false);
   const router = useRouter();
 
@@ -12,7 +14,7 @@ export function DeleteCourseButton({ courseId, courseTitle }: { courseId: string
     e.preventDefault();
     if (!confirm(`Eliminare "${courseTitle}"? Verranno eliminati tutti i moduli e le lezioni.`)) return;
     setDeleting(true);
-    await deleteCourse(courseId);
+    await deleteCourse(slug, courseId);
     router.refresh();
   }
 
@@ -36,6 +38,7 @@ export function EditCourseButton({
   courseId: string;
   defaults: { title: string; description?: string | null };
 }) {
+  const slug = useCompanySlug();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -43,7 +46,7 @@ export function EditCourseButton({
     e.preventDefault();
     setLoading(true);
     const fd = new FormData(e.currentTarget);
-    await updateCourse(courseId, {
+    await updateCourse(slug, courseId, {
       title: fd.get("title") as string,
       description: (fd.get("description") as string) || undefined,
     });

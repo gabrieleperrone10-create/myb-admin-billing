@@ -1,9 +1,11 @@
 "use client";
 import { useState } from "react";
 import { updateCourse } from "@/app/actions/academy";
+import { useCompanySlug } from "@/lib/useCompany";
 import { Eye, EyeOff } from "lucide-react";
 
 export function PublishToggle({ courseId, published }: { courseId: string; published: boolean }) {
+  const slug = useCompanySlug();
   const [isPublished, setIsPublished] = useState(published);
   const [loading, setLoading] = useState(false);
 
@@ -11,7 +13,7 @@ export function PublishToggle({ courseId, published }: { courseId: string; publi
     setLoading(true);
     const next = !isPublished;
     setIsPublished(next);
-    await updateCourse(courseId, { published: next });
+    await updateCourse(slug, courseId, { published: next });
     setLoading(false);
   }
 

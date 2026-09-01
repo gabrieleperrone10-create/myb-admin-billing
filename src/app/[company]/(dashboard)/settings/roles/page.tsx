@@ -2,8 +2,9 @@ export const dynamic = "force-dynamic";
 import { getRoles } from "@/app/actions/roles";
 import RolesClient from "./RolesClient";
 
-export default async function RolesPage() {
-  const roles = await getRoles();
+export default async function RolesPage({ params }: { params: Promise<{ company: string }> }) {
+  const { company: slug } = await params;
+  const roles = await getRoles(slug);
 
   return (
     <div className="max-w-[900px]">
@@ -15,7 +16,7 @@ export default async function RolesPage() {
           Definisci i livelli di accesso per ogni sezione del gestionale
         </p>
       </div>
-      <RolesClient roles={roles} />
+      <RolesClient roles={roles} slug={slug} />
     </div>
   );
 }

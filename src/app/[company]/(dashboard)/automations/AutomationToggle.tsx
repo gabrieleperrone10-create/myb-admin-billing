@@ -1,13 +1,15 @@
 "use client";
 import { useTransition } from "react";
 import { toggleAutomation } from "@/app/actions/automations";
+import { useCompanySlug } from "@/lib/useCompany";
 
 export function AutomationToggle({ type, active, color }: { type: string; active: boolean; color: string }) {
+  const slug = useCompanySlug();
   const [pending, startTransition] = useTransition();
 
   return (
     <button
-      onClick={() => startTransition(() => toggleAutomation(type, !active))}
+      onClick={() => startTransition(() => toggleAutomation(slug, type, !active))}
       disabled={pending}
       aria-label={active ? "Disattiva" : "Attiva"}
       className="relative shrink-0"
