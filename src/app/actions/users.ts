@@ -1,18 +1,18 @@
 "use server";
-import { auth, clerkClient } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/prisma";
+import { clerkClient } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
-import { seedDefaultRoles } from "./roles";
+import { seedDefaultRoles } from "@/lib/roleSeed";
+import { companyAction } from "@/lib/companyAction";
 
-export async function listUsers() {
-  let userId: string | null = null;
-  try { ({ userId } = await auth()); } catch { /* no clerk context */ }
-  await seedDefaultRoles(userId ?? undefined);
+export const listUsers = companyAction(async (ctx) => {
+  await seedDefaultRoles(ctx.db, ctx.companyId, ctx.userId);
 
   const client = await clerkClient();
   const { data: clerkUsers } = await client.users.getUserList({ limit: 200 });
 
-  const allAssignments = await prisma.appUserRole.findMany({
+  // Solo le assegnazioni di QUESTA azienda: i ruoli in un'altra azienda non
+  // devono comparire qui, ne' dare accesso qui.
+  const allAssignments = await ctx.db.appUserRole.findMany({
     include: { role: true },
   });
 
@@ -26,14 +26,14 @@ export async function listUsers() {
       .filter(a => a.clerkUserId === u.id)
       .map(a => ({ id: a.role.id, name: a.role.name, color: a.role.color })),
   }));
-}
+});
 
-export async function createNewUser(data: {
+export const createNewUser = companyAction(async (ctx, data: {
   email: string;
   firstName: string;
   lastName: string;
   roleId?: string;
-}) {
+}) => {
   const client = await clerkClient();
   try {
     const { randomBytes } = await import("crypto");
@@ -48,66 +48,74 @@ export async function createNewUser(data: {
     } as Parameters<typeof client.users.createUser>[0]);
 
     if (data.roleId) {
-      await prisma.appUserRole.create({
-        data: { clerkUserId: user.id, roleId: data.roleId },
+      await ctx.db.appUserRole.create({
+        data: { companyId: ctx.companyId, clerkUserId: user.id, roleId: data.roleId },
       }).catch(() => {});
     }
 
     const { Resend } = await import("resend");
     const resend = new Resend(process.env.RESEND_API_KEY);
     const name = [data.firstName, data.lastName].filter(Boolean).join(" ") || data.email;
+    const fromEmail = ctx.company.emailFromAddress ?? process.env.EMAIL_FROM!;
+    const replyTo   = ctx.company.emailReplyTo ?? process.env.EMAIL_REPLY_TO;
+    const appUrl    = process.env.NEXT_PUBLIC_APP_URL ?? "";
     await resend.emails.send({
-      from: process.env.EMAIL_FROM!,
+      from: fromEmail,
       to: data.email,
-      replyTo: process.env.EMAIL_REPLY_TO,
-      subject: "Accesso al gestionale – Market Your Business",
+      replyTo,
+      subject: `Accesso al gestionale – ${ctx.company.name}`,
       html: `<p>Ciao ${name},</p>
-<p>Il tuo account per il gestionale di Market Your Business è stato creato.</p>
-<p>Per accedere vai su <a href="https://admin.marketyourbusiness.ai/sign-in">admin.marketyourbusiness.ai/sign-in</a>, clicca su <strong>"Password dimenticata?"</strong> e inserisci la tua email <strong>${data.email}</strong> per impostare la tua password.</p>
-<p>Market Your Business</p>`,
+<p>Il tuo account per il gestionale di ${ctx.company.name} è stato creato.</p>
+<p>Per accedere vai su <a href="${appUrl}/sign-in">${appUrl.replace(/^https?:\/\//, "")}/sign-in</a>, clicca su <strong>"Password dimenticata?"</strong> e inserisci la tua email <strong>${data.email}</strong> per impostare la tua password.</p>
+<p>${ctx.company.name}</p>`,
     });
 
-    revalidatePath("/settings/users");
+    revalidatePath(`/${ctx.slug}/settings/users`);
     return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e.errors?.[0]?.longMessage ?? e.message ?? String(e) };
+  } catch (e: unknown) {
+    const err = e as { errors?: { longMessage?: string }[]; message?: string };
+    return { ok: false, error: err.errors?.[0]?.longMessage ?? err.message ?? String(e) };
   }
-}
+});
 
-export async function assignRole(clerkUserId: string, roleId: string) {
-  let userId: string | null = null;
-  try { ({ userId } = await auth()); } catch { /* no clerk context */ }
+export const assignRole = companyAction(async (ctx, clerkUserId: string, roleId: string) => {
   try {
-    await prisma.appUserRole.upsert({
-      where: { clerkUserId_roleId: { clerkUserId, roleId } },
-      create: { clerkUserId, roleId, assignedBy: userId ?? undefined },
+    await ctx.db.appUserRole.upsert({
+      where: { companyId_clerkUserId_roleId: { companyId: ctx.companyId, clerkUserId, roleId } },
+      create: { companyId: ctx.companyId, clerkUserId, roleId, assignedBy: ctx.userId },
       update: {},
     });
-    revalidatePath("/settings/users");
+    revalidatePath(`/${ctx.slug}/settings/users`);
     return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e.message };
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
-}
+});
 
-export async function removeRole(clerkUserId: string, roleId: string) {
+export const removeRole = companyAction(async (ctx, clerkUserId: string, roleId: string) => {
   try {
-    await prisma.appUserRole.deleteMany({ where: { clerkUserId, roleId } });
-    revalidatePath("/settings/users");
+    await ctx.db.appUserRole.deleteMany({ where: { clerkUserId, roleId } });
+    revalidatePath(`/${ctx.slug}/settings/users`);
     return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e.message };
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
-}
+});
 
-export async function removeUser(clerkUserId: string) {
+export const removeUser = companyAction(async (ctx, clerkUserId: string) => {
   const client = await clerkClient();
   try {
-    await client.users.deleteUser(clerkUserId);
-    await prisma.appUserRole.deleteMany({ where: { clerkUserId } });
-    revalidatePath("/settings/users");
+    // Rimuove solo la membership/i ruoli di QUESTA azienda: l'utente puo'
+    // appartenere anche ad altre aziende. L'account Clerk va cancellato solo se
+    // non e' membro di nessun'altra.
+    await ctx.db.appUserRole.deleteMany({ where: { clerkUserId } });
+    const stillMember = await ctx.db.companyMember.findFirst({ where: { clerkUserId } });
+    if (!stillMember) {
+      await client.users.deleteUser(clerkUserId);
+    }
+    revalidatePath(`/${ctx.slug}/settings/users`);
     return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: e.message };
+  } catch (e: unknown) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
-}
+});

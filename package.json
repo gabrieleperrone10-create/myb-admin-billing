@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:deploy": "prisma migrate deploy",
+    "test:isolation": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-isolation.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.98.0",
@@ -39,6 +41,7 @@
     "clsx": "^2.1.1",
     "csv-parse": "^6.2.1",
     "date-fns": "^4.1.0",
+    "framer-motion": "^12.43.0",
     "lucide-react": "^1.14.0",
     "next": "16.2.4",
     "prisma": "^5.22.0",
@@ -60,6 +63,7 @@
     "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
+    "tsx": "^4.23.13",
     "typescript": "^5"
   }
 }

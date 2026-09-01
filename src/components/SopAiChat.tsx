@@ -1,10 +1,12 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { Bot, Send, X, Sparkles, User } from "lucide-react";
+import { useCompanySlug } from "@/lib/useCompany";
 
 type Message = { role: "user" | "assistant"; content: string };
 
 export function SopAiChat() {
+  const slug = useCompanySlug();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -24,7 +26,7 @@ export function SopAiChat() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/sop/ai", {
+      const res = await fetch(`/api/sop/ai?company=${slug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question }),

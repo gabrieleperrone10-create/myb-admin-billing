@@ -17,14 +17,17 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
+// Fallback per le rotte fuori da [company] (sign-in, sign-up): non puo' nominare
+// una singola azienda, condivise da utenti di aziende diverse. Le pagine sotto
+// [company]/(dashboard) sovrascrivono il titolo con generateMetadata().
 export const metadata: Metadata = {
-  title: "Market Your Business — Admin",
+  title: "Admin",
   description: "Pannello amministrazione e fatturazione",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "MYB Admin",
+    title: "Admin",
   },
   formatDetection: { telephone: false },
 };

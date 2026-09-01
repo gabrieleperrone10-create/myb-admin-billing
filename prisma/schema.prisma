@@ -87,49 +87,166 @@ enum RsvpStatus {
   MAYBE
 }
 
-model CompanySettings {
-  id         String   @id @default("singleton")
-  name       String   @default("")
-  email      String   @default("")
+model Company {
+  id     String  @id @default(cuid()) // la riga storica mantiene id = "singleton"
+  slug   String  @unique // "market-your-business", "axis-mundi"
+  active Boolean @default(true)
+
+  // — identità fiscale (campi ereditati da CompanySettings) —
+  name          String    @default("")
+  email         String    @default("")
+  phone         String?
+  website       String?
+  address       String?
+  city          String?
+  zip           String?
+  province      String?
+  country       String?
+  vatNumber     String?
+  fiscalCode    String?
+  bankName      String?
+  iban          String?
+  bic           String?
+  invoiceFooter String?
+  bankBalance   Float?
+  bankBalanceAt DateTime?
+
+  // — numerazione documenti —
+  invoicePrefix    String @default("INV")
+  creditNotePrefix String @default("NC")
+  numberPadding    Int    @default(4)
+
+  // — identità email e brand —
+  logoUrl          String?
+  emailFromName    String?
+  emailFromAddress String?
+  emailReplyTo     String?
+  brandColor       String  @default("#4f7deb")
+  locale           String  @default("it-IT")
+  defaultCurrency  String  @default("EUR")
+  timezone         String  @default("Europe/Rome")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members            CompanyMember[]
+  integrations       CompanyIntegration[]
+  counters           DocumentCounter[]
+  clients            Client[]
+  products           Product[]
+  contracts          Contract[]
+  deposits           Deposit[]
+  invoices           Invoice[]
+  creditNotes        CreditNote[]
+  payments           Payment[]
+  expenses           Expense[]
+  automations        Automation[]
+  sopFolders         SopFolder[]
+  sopTags            SopTag[]
+  sopSopTags         SopSopTag[]
+  sopAttachments     SopAttachment[]
+  sops               Sop[]
+  tags               Tag[]
+  teamMembers        TeamMember[]
+  teamMemberTags     TeamMemberTag[]
+  courseCategories   CourseCategory[]
+  courseCategoryTags CourseCategoryTag[]
+  courses            Course[]
+  modules            Module[]
+  lessons            Lesson[]
+  lessonAttachments  LessonAttachment[]
+  lessonProgress     LessonProgress[]
+  events             Event[]
+  eventRsvps         EventRsvp[]
+  objectives         Objective[]
+  keyResults         KeyResult[]
+  checkIns           CheckIn[]
+  appRoles           AppRole[]
+  appRolePermissions AppRolePermission[]
+  appUserRoles       AppUserRole[]
+}
+
+model CompanyMember {
+  id          String   @id @default(cuid())
+  companyId   String
+  clerkUserId String
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, clerkUserId])
+  @@index([clerkUserId])
+}
+
+enum IntegrationProvider {
+  STRIPE
+  PAYPAL
+  RESEND
+}
+
+/// I segreti NON stanno su Company: quella riga viene passata come prop ai Server
+/// Component e ai template PDF, quindi finirebbe serializzata nei payload RSC.
+model CompanyIntegration {
+  companyId    String
+  provider     IntegrationProvider
+  publicKey    String?
+  secretCipher Bytes?
+  secretIv     Bytes?
+  secretTag    Bytes?
+  meta         Json                @default("{}")
+  active       Boolean             @default(false)
+  updatedAt    DateTime            @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, provider])
+}
+
+enum DocumentKind {
+  INVOICE
+  CREDIT_NOTE
+}
+
+model DocumentCounter {
+  companyId String
+  kind      DocumentKind
+  year      Int
+  lastValue Int          @default(0)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, kind, year])
+}
+
+model Client {
+  id         String   @id @default(cuid())
+  name       String
+  email      String
   phone      String?
-  website    String?
+  whatsapp   String?
+  company    String?
+  fiscalCode String?
+  vatNumber  String?
   address    String?
   city       String?
   zip        String?
   province   String?
   country    String?
-  vatNumber  String?
-  fiscalCode String?
-  bankName   String?
-  iban       String?
-  bic        String?
-  invoiceFooter  String?
-  bankBalance    Float?
-  bankBalanceAt  DateTime?
-  updatedAt      DateTime @updatedAt
-}
-
-model Client {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  phone        String?
-  whatsapp     String?
-  company      String?
-  fiscalCode   String?
-  vatNumber    String?
-  address      String?
-  city         String?
-  zip          String?
-  province     String?
-  country      String?
-  notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   contracts   Contract[]
   invoices    Invoice[]
   creditNotes CreditNote[]
+
+  companyId    String
+  ownerCompany Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@index([companyId, createdAt])
 }
 
 model Product {
@@ -144,12 +261,18 @@ model Product {
   updatedAt   DateTime    @updatedAt
 
   contracts Contract[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([companyId, active])
 }
 
 model Contract {
-  id         String       @id @default(cuid())
-  clientId   String
-  productId  String
+  id            String        @id @default(cuid())
+  clientId      String
+  productId     String
   type          ContractType
   amount        Float
   currency      String        @default("EUR")
@@ -160,13 +283,23 @@ model Contract {
   installments  Int?
   active        Boolean       @default(true)
   notes         String?
-  createdAt  DateTime     @default(now())
-  updatedAt  DateTime     @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   client   Client    @relation(fields: [clientId], references: [id])
   product  Product   @relation(fields: [productId], references: [id])
   invoices Invoice[]
   deposit  Deposit?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([companyId, active, type])
+  @@index([companyId, endDate])
+  @@index([companyId, startDate])
+  @@index([clientId])
+  @@index([productId])
 }
 
 model Deposit {
@@ -182,11 +315,17 @@ model Deposit {
 
   contract Contract @relation(fields: [contractId], references: [id])
   payment  Payment?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([companyId, status])
 }
 
 model Invoice {
   id         String        @id @default(cuid())
-  number     String        @unique
+  number     String
   clientId   String
   contractId String?
   amount     Float
@@ -202,15 +341,25 @@ model Invoice {
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 
-  client   Client    @relation(fields: [clientId], references: [id])
-  contract Contract? @relation(fields: [contractId], references: [id])
-  payment  Payment?
+  client      Client       @relation(fields: [clientId], references: [id])
+  contract    Contract?    @relation(fields: [contractId], references: [id])
+  payment     Payment?
   creditNotes CreditNote[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, number])
+  @@index([companyId])
+  @@index([companyId, status, dueDate])
+  @@index([companyId, issueDate])
+  @@index([companyId, contractId])
+  @@index([clientId])
 }
 
 model CreditNote {
   id     String           @id @default(cuid())
-  number String           @unique
+  number String
   status CreditNoteStatus @default(ISSUED)
 
   invoiceId String?
@@ -235,14 +384,23 @@ model CreditNote {
   originalInvoiceDate   DateTime?
 
   amount    Float
-  currency  String   @default("EUR")
+  currency  String    @default("EUR")
   reason    String
   lineItems Json
-  issueDate DateTime @default(now())
+  issueDate DateTime  @default(now())
   sentAt    DateTime?
   notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, number])
+  @@index([companyId])
+  @@index([companyId, issueDate])
+  @@index([invoiceId])
+  @@index([clientId])
 }
 
 model Payment {
@@ -261,6 +419,13 @@ model Payment {
 
   invoice Invoice? @relation(fields: [invoiceId], references: [id])
   deposit Deposit? @relation(fields: [depositId], references: [id])
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([companyId, paidAt])
+  @@index([companyId, method, paidAt])
 }
 
 model Expense {
@@ -275,16 +440,29 @@ model Expense {
   notes       String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([companyId, date])
+  @@index([companyId, category, date])
 }
 
 model Automation {
-  id          String   @id @default(cuid())
-  type        String   @unique
-  active      Boolean  @default(false)
-  config      Json     @default("{}")
-  lastRunAt   DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String    @id @default(cuid())
+  type      String
+  active    Boolean   @default(false)
+  config    Json      @default("{}")
+  lastRunAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, type])
+  @@index([companyId])
 }
 
 model SopFolder {
@@ -295,13 +473,24 @@ model SopFolder {
   createdAt DateTime @default(now())
 
   sops Sop[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 model SopTag {
   id    String      @id @default(cuid())
-  name  String      @unique
+  name  String
   color String      @default("#4f7deb")
   sops  SopSopTag[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
 }
 
 model SopSopTag {
@@ -311,7 +500,11 @@ model SopSopTag {
   sop Sop    @relation(fields: [sopId], references: [id], onDelete: Cascade)
   tag SopTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
   @@id([sopId, tagId])
+  @@index([companyId])
 }
 
 model SopAttachment {
@@ -324,6 +517,11 @@ model SopAttachment {
   createdAt DateTime       @default(now())
 
   sop Sop @relation(fields: [sopId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 model Sop {
@@ -339,31 +537,49 @@ model Sop {
   folder      SopFolder?      @relation(fields: [folderId], references: [id])
   tags        SopSopTag[]
   attachments SopAttachment[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([companyId, folderId])
 }
 
 model Tag {
-  id         String           @id @default(cuid())
-  name       String           @unique
-  color      String           @default("#4f7deb")
-  createdAt  DateTime         @default(now())
+  id        String   @id @default(cuid())
+  name      String
+  color     String   @default("#4f7deb")
+  createdAt DateTime @default(now())
 
   members    TeamMemberTag[]
   categories CourseCategoryTag[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
 }
 
 model TeamMember {
   id        String   @id @default(cuid())
   name      String
-  email     String   @unique
+  email     String
   role      String?
   avatarUrl String?
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tags      TeamMemberTag[]
-  progress  LessonProgress[]
-  rsvps     EventRsvp[]
+  tags     TeamMemberTag[]
+  progress LessonProgress[]
+  rsvps    EventRsvp[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, email])
+  @@index([companyId])
 }
 
 model TeamMemberTag {
@@ -373,7 +589,11 @@ model TeamMemberTag {
   member TeamMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
   tag    Tag        @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
   @@id([memberId, tagId])
+  @@index([companyId])
 }
 
 model CourseCategory {
@@ -385,6 +605,11 @@ model CourseCategory {
 
   requiredTags CourseCategoryTag[]
   courses      Course[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 model CourseCategoryTag {
@@ -394,7 +619,11 @@ model CourseCategoryTag {
   category CourseCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   tag      Tag            @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
   @@id([categoryId, tagId])
+  @@index([companyId])
 }
 
 model Course {
@@ -410,6 +639,12 @@ model Course {
 
   category CourseCategory @relation(fields: [categoryId], references: [id])
   modules  Module[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([categoryId])
 }
 
 enum AttachmentType {
@@ -425,10 +660,16 @@ model Module {
   order     Int      @default(0)
   createdAt DateTime @default(now())
 
-  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  parent    Module?  @relation("ModuleChildren", fields: [parentId], references: [id], onDelete: Cascade)
-  children  Module[] @relation("ModuleChildren")
-  lessons   Lesson[]
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  parent   Module?  @relation("ModuleChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children Module[] @relation("ModuleChildren")
+  lessons  Lesson[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([courseId])
 }
 
 model Lesson {
@@ -446,6 +687,12 @@ model Lesson {
   module      Module             @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   progress    LessonProgress[]
   attachments LessonAttachment[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([moduleId])
 }
 
 model LessonAttachment {
@@ -458,6 +705,11 @@ model LessonAttachment {
   createdAt DateTime       @default(now())
 
   lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
 }
 
 model LessonProgress {
@@ -468,7 +720,11 @@ model LessonProgress {
   member TeamMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
   lesson Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
   @@id([memberId, lessonId])
+  @@index([companyId])
 }
 
 model Event {
@@ -488,6 +744,12 @@ model Event {
   updatedAt          DateTime       @updatedAt
 
   rsvps EventRsvp[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([companyId, date])
 }
 
 model EventRsvp {
@@ -498,7 +760,11 @@ model EventRsvp {
   member TeamMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
   event  Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
   @@id([memberId, eventId])
+  @@index([companyId])
 }
 
 // ── Access control ────────────────────────────────────────────────────────────
@@ -552,6 +818,12 @@ model Objective {
 
   keyResults KeyResult[]
   checkIns   CheckIn[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([companyId, year, period])
 }
 
 model KeyResult {
@@ -569,6 +841,12 @@ model KeyResult {
   updatedAt   DateTime      @updatedAt
 
   objective Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([objectiveId])
 }
 
 model CheckIn {
@@ -578,6 +856,12 @@ model CheckIn {
   createdAt   DateTime @default(now())
 
   objective Objective @relation(fields: [objectiveId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([objectiveId])
 }
 
 enum AppSection {
@@ -610,7 +894,7 @@ enum PermissionLevel {
 
 model AppRole {
   id          String   @id @default(cuid())
-  name        String   @unique
+  name        String
   description String?
   color       String   @default("#4f7deb")
   isSystem    Boolean  @default(false)
@@ -619,6 +903,12 @@ model AppRole {
 
   permissions AppRolePermission[]
   userRoles   AppUserRole[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
 }
 
 model AppRolePermission {
@@ -629,7 +919,11 @@ model AppRolePermission {
 
   role AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
   @@unique([roleId, section])
+  @@index([companyId])
 }
 
 model AppUserRole {
@@ -641,5 +935,10 @@ model AppUserRole {
 
   role AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
-  @@unique([clerkUserId, roleId])
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, clerkUserId, roleId])
+  @@index([companyId])
+  @@index([companyId, clerkUserId])
 }

@@ -1,11 +1,12 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { sendContractCreatedEmails } from "./email";
+import { companyAction } from "@/lib/companyAction";
+import { sendContractCreatedEmails } from "@/lib/mail";
+import { nextInvoiceNumber } from "@/lib/numbering";
 
-export async function createContract(formData: FormData) {
+export const createContract = companyAction(async (ctx, formData: FormData) => {
   const type          = formData.get("type") as "RECURRING" | "ONE_SHOT" | "INSTALLMENT";
   const depositAmount = formData.get("depositAmount") as string;
   const hasDeposit    = formData.get("hasDeposit") === "true";
@@ -21,8 +22,9 @@ export async function createContract(formData: FormData) {
     ? "MONTHLY"
     : (formData.get("billingPeriod") as "MONTHLY" | "QUARTERLY" | "ANNUALLY") || "MONTHLY";
 
-  const contract = await prisma.contract.create({
+  const contract = await ctx.db.contract.create({
     data: {
+      companyId:    ctx.companyId,
       clientId:     formData.get("clientId") as string,
       productId:    formData.get("productId") as string,
       type,
@@ -38,8 +40,9 @@ export async function createContract(formData: FormData) {
   });
 
   if (hasDeposit && depositAmount) {
-    await prisma.deposit.create({
+    await ctx.db.deposit.create({
       data: {
+        companyId:  ctx.companyId,
         contractId: contract.id,
         amount:     parseFloat(depositAmount),
         status:     "PENDING",
@@ -47,7 +50,7 @@ export async function createContract(formData: FormData) {
     });
 
     // Genera subito la fattura DRAFT del deposito
-    const product = await prisma.product.findUnique({
+    const product = await ctx.db.product.findUnique({
       where: { id: formData.get("productId") as string },
       select: { name: true },
     });
@@ -55,9 +58,10 @@ export async function createContract(formData: FormData) {
     const today   = new Date();
     const dueDate = new Date(today);
     dueDate.setDate(dueDate.getDate() + 15);
-    const number  = await nextInvoiceNumber();
-    await prisma.invoice.create({
+    const number  = await nextInvoiceNumber(ctx.db, ctx.companyId, ctx.company.invoicePrefix, ctx.company.numberPadding);
+    await ctx.db.invoice.create({
       data: {
+        companyId:  ctx.companyId,
         number,
         clientId:   contract.clientId,
         contractId: contract.id,
@@ -72,54 +76,56 @@ export async function createContract(formData: FormData) {
   }
 
   try {
-    const automation = await prisma.automation.findUnique({ where: { type: "CONTRACT_WELCOME" } });
+    const automation = await ctx.db.automation.findFirst({ where: { type: "CONTRACT_WELCOME" } });
     if (automation?.active) {
-      await sendContractCreatedEmails(contract.id);
+      await sendContractCreatedEmails(ctx.companyId, contract.id);
     }
   } catch (e) {
     console.error("Invio email nuovo contratto fallito", e);
   }
 
-  revalidatePath("/contracts");
-  redirect(`/contracts/${contract.id}`);
-}
+  revalidatePath(`/${ctx.slug}/contracts`);
+  redirect(`/${ctx.slug}/contracts/${contract.id}`);
+});
 
-export async function updateContractStatus(id: string, active: boolean) {
-  await prisma.contract.update({ where: { id }, data: { active } });
-  revalidatePath("/contracts");
-  revalidatePath(`/contracts/${id}`);
-}
+export const updateContractStatus = companyAction(async (ctx, id: string, active: boolean) => {
+  await ctx.db.contract.update({ where: { id }, data: { active } });
+  revalidatePath(`/${ctx.slug}/contracts`);
+  revalidatePath(`/${ctx.slug}/contracts/${id}`);
+});
 
-export async function deleteContract(id: string) {
-  const paidCount = await prisma.invoice.count({
+export const deleteContract = companyAction(async (ctx, id: string) => {
+  const paidCount = await ctx.db.invoice.count({
     where: { contractId: id, status: "PAID" },
   });
   if (paidCount > 0) {
     throw new Error("Non puoi eliminare un contratto con fatture già pagate.");
   }
   // Elimina prima le fatture bozza/annullate collegate
-  await prisma.invoice.deleteMany({ where: { contractId: id } });
-  await prisma.contract.delete({ where: { id } });
-  revalidatePath("/contracts");
-  redirect("/contracts");
-}
+  await ctx.db.invoice.deleteMany({ where: { contractId: id } });
+  await ctx.db.contract.delete({ where: { id } });
+  revalidatePath(`/${ctx.slug}/contracts`);
+  redirect(`/${ctx.slug}/contracts`);
+});
 
-export async function markDepositPaid(
+export const markDepositPaid = companyAction(async (
+  ctx,
   depositId: string,
   contractId: string,
   formData: FormData,
-) {
+) => {
   const method = formData.get("method") as "STRIPE" | "PAYPAL" | "BANK_TRANSFER";
   const paidAt = new Date(formData.get("paidAt") as string);
 
-  const deposit = await prisma.deposit.update({
+  const deposit = await ctx.db.deposit.update({
     where: { id: depositId },
     data:  { status: "PAID", paidAt },
     include: { contract: { include: { client: true, product: true } } },
   });
 
-  await prisma.payment.create({
+  await ctx.db.payment.create({
     data: {
+      companyId: ctx.companyId,
       depositId,
       amount:    deposit.amount,
       method,
@@ -130,18 +136,19 @@ export async function markDepositPaid(
 
   // Aggiorna o crea fattura deposito
   const { contract } = deposit;
-  const existingDepositInvoice = await prisma.invoice.findFirst({
+  const existingDepositInvoice = await ctx.db.invoice.findFirst({
     where: { contractId: contract.id, notes: "Acconto / deposito" },
   });
   if (existingDepositInvoice) {
-    await prisma.invoice.update({
+    await ctx.db.invoice.update({
       where: { id: existingDepositInvoice.id },
       data:  { status: "PAID", paidAt, issueDate: paidAt, dueDate: paidAt },
     });
   } else {
-    const number = await nextInvoiceNumber();
-    await prisma.invoice.create({
+    const number = await nextInvoiceNumber(ctx.db, ctx.companyId, ctx.company.invoicePrefix, ctx.company.numberPadding);
+    await ctx.db.invoice.create({
       data: {
+        companyId:  ctx.companyId,
         number,
         clientId:   contract.clientId,
         contractId: contract.id,
@@ -156,13 +163,13 @@ export async function markDepositPaid(
     });
   }
 
-  revalidatePath(`/contracts/${contractId}`);
-  revalidatePath("/contracts");
-  revalidatePath("/invoices");
-}
+  revalidatePath(`/${ctx.slug}/contracts/${contractId}`);
+  revalidatePath(`/${ctx.slug}/contracts`);
+  revalidatePath(`/${ctx.slug}/invoices`);
+});
 
-export async function generateNextInvoice(contractId: string) {
-  const contract = await prisma.contract.findUnique({
+export const generateNextInvoice = companyAction(async (ctx, contractId: string) => {
+  const contract = await ctx.db.contract.findUnique({
     where: { id: contractId },
     include: {
       product: true,
@@ -199,9 +206,10 @@ export async function generateNextInvoice(contractId: string) {
   const dueDate = new Date(issueDate);
   dueDate.setDate(dueDate.getDate() + 15);
 
-  const number = await nextInvoiceNumber();
-  const invoice = await prisma.invoice.create({
+  const number = await nextInvoiceNumber(ctx.db, ctx.companyId, ctx.company.invoicePrefix, ctx.company.numberPadding, issueDate.getFullYear());
+  const invoice = await ctx.db.invoice.create({
     data: {
+      companyId:  ctx.companyId,
       number,
       clientId:   contract.clientId,
       contractId: contract.id,
@@ -220,21 +228,7 @@ export async function generateNextInvoice(contractId: string) {
     },
   });
 
-  revalidatePath(`/contracts/${contractId}`);
-  revalidatePath("/invoices");
-  redirect(`/invoices/${invoice.id}`);
-}
-
-async function nextInvoiceNumber() {
-  const year = new Date().getFullYear();
-  const all  = await prisma.invoice.findMany({ select: { number: true } });
-  let max = 0;
-  for (const inv of all) {
-    const match = inv.number.match(/^MYB-\d{4}-(\d+)$/);
-    if (match) {
-      const n = parseInt(match[1]);
-      if (n > max) max = n;
-    }
-  }
-  return `MYB-${year}-${String(max + 1).padStart(4, "0")}`;
-}
+  revalidatePath(`/${ctx.slug}/contracts/${contractId}`);
+  revalidatePath(`/${ctx.slug}/invoices`);
+  redirect(`/${ctx.slug}/invoices/${invoice.id}`);
+});

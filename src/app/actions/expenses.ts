@@ -1,13 +1,14 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { companyAction } from "@/lib/companyAction";
 import { ExpenseCategory } from "@prisma/client";
 
-export async function createExpense(formData: FormData) {
-  await prisma.expense.create({
+export const createExpense = companyAction(async (ctx, formData: FormData) => {
+  await ctx.db.expense.create({
     data: {
+      companyId:   ctx.companyId,
       date:        new Date(formData.get("date") as string),
       category:    formData.get("category") as ExpenseCategory,
       description: formData.get("description") as string,
@@ -17,13 +18,13 @@ export async function createExpense(formData: FormData) {
     },
   });
 
-  revalidatePath("/expenses");
-  revalidatePath("/dashboard");
-  redirect("/expenses");
-}
+  revalidatePath(`/${ctx.slug}/expenses`);
+  revalidatePath(`/${ctx.slug}/dashboard`);
+  redirect(`/${ctx.slug}/expenses`);
+});
 
-export async function updateExpense(id: string, formData: FormData) {
-  await prisma.expense.update({
+export const updateExpense = companyAction(async (ctx, id: string, formData: FormData) => {
+  await ctx.db.expense.update({
     where: { id },
     data: {
       date:        new Date(formData.get("date") as string),
@@ -35,14 +36,14 @@ export async function updateExpense(id: string, formData: FormData) {
     },
   });
 
-  revalidatePath("/expenses");
-  revalidatePath("/dashboard");
-  redirect("/expenses");
-}
+  revalidatePath(`/${ctx.slug}/expenses`);
+  revalidatePath(`/${ctx.slug}/dashboard`);
+  redirect(`/${ctx.slug}/expenses`);
+});
 
-export async function deleteExpense(id: string) {
-  await prisma.expense.delete({ where: { id } });
-  revalidatePath("/expenses");
-  revalidatePath("/dashboard");
-  redirect("/expenses");
-}
+export const deleteExpense = companyAction(async (ctx, id: string) => {
+  await ctx.db.expense.delete({ where: { id } });
+  revalidatePath(`/${ctx.slug}/expenses`);
+  revalidatePath(`/${ctx.slug}/dashboard`);
+  redirect(`/${ctx.slug}/expenses`);
+});

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { prisma } from "@/lib/prisma";
+import { requireCompanyFromRequest, type CompanyContext } from "@/lib/company";
+import { nextInvoiceNumber } from "@/lib/numbering";
 import { Resend } from "resend";
 import { renderToBuffer } from "@react-pdf/renderer";
 import InvoicePDF from "@/lib/pdf/InvoicePDF";
@@ -8,7 +9,8 @@ import React from "react";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const SYSTEM = `Sei l'assistente AI di Market Your Business per la creazione delle fatture. Parli sempre in italiano.
+function buildSystemPrompt(companyName: string) {
+  return `Sei l'assistente AI di ${companyName} per la creazione delle fatture. Parli sempre in italiano.
 
 Il tuo flusso di lavoro:
 1. Raccogli le informazioni: cliente, descrizione servizi, importi, aliquota IVA, date
@@ -49,6 +51,7 @@ Regole importanti:
 - Sii conciso ma completo. Niente testo inutile.
 - Dopo aver creato la fattura, comunica il numero e che l'email è stata inviata
 - Puoi creare fatture con stato PAID se l'utente dice che è già stata pagata. In quel caso chiedi la data di pagamento e NON inviare l'email (o inviala solo se richiesto esplicitamente)`;
+}
 
 const TOOLS: Anthropic.Tool[] = [
   {
@@ -110,12 +113,13 @@ const TOOLS: Anthropic.Tool[] = [
   },
 ];
 
-async function executeTool(name: string, input: Record<string, unknown>): Promise<unknown> {
+async function executeTool(ctx: CompanyContext, name: string, input: Record<string, unknown>): Promise<unknown> {
+  const { db, company, companyId } = ctx;
   try {
   switch (name) {
     case "search_clients": {
       const q = String(input.query ?? "");
-      const clients = await prisma.client.findMany({
+      const clients = await db.client.findMany({
         where: {
           OR: [
             { name: { contains: q, mode: "insensitive" } },
@@ -131,7 +135,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
 
     case "search_products": {
       const q = String(input.query ?? "");
-      const products = await prisma.product.findMany({
+      const products = await db.product.findMany({
         where: {
           active: true,
           OR: [
@@ -146,22 +150,11 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     }
 
     case "get_company_info": {
-      const company = await prisma.companySettings.upsert({
-        where: { id: "singleton" },
-        update: {},
-        create: { id: "singleton" },
-      });
       return company;
     }
 
     case "get_next_invoice_number": {
-      const year = new Date().getFullYear();
-      const last = await prisma.invoice.findFirst({
-        where: { number: { startsWith: `MYB-${year}-` } },
-        orderBy: { number: "desc" },
-      });
-      const seq = last ? parseInt(last.number.split("-")[2]) + 1 : 1;
-      return { number: `MYB-${year}-${String(seq).padStart(4, "0")}` };
+      return { number: await nextInvoiceNumber(db, companyId, company.invoicePrefix, company.numberPadding) };
     }
 
     case "create_and_send_invoice": {
@@ -173,18 +166,13 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       const invoiceStatus = (input.status as "DRAFT" | "SENT" | "PAID") ?? "SENT";
       const paidAt = input.paidAt ? new Date(String(input.paidAt)) : (invoiceStatus === "PAID" ? new Date() : undefined);
 
-      const year = issueDate.getFullYear();
-      const last = await prisma.invoice.findFirst({
-        where: { number: { startsWith: `MYB-${year}-` } },
-        orderBy: { number: "desc" },
-      });
-      const seq = last ? parseInt(last.number.split("-")[2]) + 1 : 1;
-      const number = `MYB-${year}-${String(seq).padStart(4, "0")}`;
+      const number = await nextInvoiceNumber(db, companyId, company.invoicePrefix, company.numberPadding, issueDate.getFullYear());
 
       const amount = lineItemsRaw.reduce((s, li) => s + li.quantity * li.unitPrice, 0);
 
-      const invoice = await prisma.invoice.create({
+      const invoice = await db.invoice.create({
         data: {
+          companyId,
           number,
           clientId,
           amount,
@@ -207,10 +195,6 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
         return { ok: true, invoiceId: invoice.id, number, emailSent: false, note: "Fattura registrata come pagata, email non inviata." };
       }
       try {
-        const company = await prisma.companySettings.upsert({
-          where: { id: "singleton" }, update: {}, create: { id: "singleton" },
-        });
-
         const lineItems = lineItemsRaw.map(li => ({
           description: li.description,
           quantity: li.quantity,
@@ -249,15 +233,16 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
             province: company.province, country: company.country,
             bankName: company.bankName, iban: company.iban, bic: company.bic,
             invoiceFooter: company.invoiceFooter,
+      logoUrl: company.logoUrl,
           },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         }) as any;
 
         const pdfBuffer = await renderToBuffer(element);
         const resend = new Resend(process.env.RESEND_API_KEY);
-        const fromName = company.name || "Market Your Business";
-        const fromEmail = process.env.EMAIL_FROM || "noreply@fatturazione.marketyourbusiness.it";
-        const replyTo = process.env.EMAIL_REPLY_TO || "amministrazione@marketyourbusiness.it";
+        const fromName = company.name;
+        const fromEmail = company.emailFromAddress ?? process.env.EMAIL_FROM ?? "";
+        const replyTo = company.emailReplyTo ?? process.env.EMAIL_REPLY_TO ?? "";
         const dueDateFmt = new Intl.DateTimeFormat("it-IT").format(invoice.dueDate);
         const amountFmt = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(invoice.amount);
 
@@ -272,7 +257,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
           });
           if (error) { emailError = error.message; } else {
             emailSent = true;
-            await prisma.invoice.update({ where: { id: invoice.id }, data: { status: "SENT", sentAt: new Date() } });
+            await db.invoice.update({ where: { id: invoice.id }, data: { status: "SENT", sentAt: new Date() } });
           }
         } else {
           emailError = "Il cliente non ha un indirizzo email";
@@ -295,17 +280,22 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireCompanyFromRequest(req);
+  if ("response" in auth) return auth.response;
+  const ctx = auth.ctx;
+
   try {
     const { messages } = await req.json() as { messages: Anthropic.MessageParam[] };
 
     let currentMessages: Anthropic.MessageParam[] = messages;
+    const system = buildSystemPrompt(ctx.company.name);
 
     // Agent loop — runs until end_turn (max 8 rounds to prevent infinite loops)
     for (let i = 0; i < 8; i++) {
       const response = await anthropic.messages.create({
         model: "claude-sonnet-4-6",
         max_tokens: 2048,
-        system: SYSTEM,
+        system,
         messages: currentMessages,
         tools: TOOLS,
       });
@@ -325,7 +315,7 @@ export async function POST(req: NextRequest) {
 
         const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
           toolUseBlocks.map(async (b) => {
-            const result = await executeTool(b.name, b.input as Record<string, unknown>);
+            const result = await executeTool(ctx, b.name, b.input as Record<string, unknown>);
             return {
               type: "tool_result" as const,
               tool_use_id: b.id,

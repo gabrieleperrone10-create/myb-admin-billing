@@ -3,6 +3,7 @@ import {
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
 } from "@react-pdf/renderer";
 
@@ -19,6 +20,7 @@ const s = StyleSheet.create({
   page: { fontFamily: N, fontSize: 9, color: DARK, padding: 48, backgroundColor: "#fff" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 40 },
   brand: { flexDirection: "column" },
+  logo: { width: 120, height: 40, objectFit: "contain", marginBottom: 4 },
   brandName: { fontFamily: B, fontSize: 18, color: RED },
   brandSub: { fontSize: 9, color: GRAY_TEXT, marginTop: 2 },
   invoiceMeta: { alignItems: "flex-end" },
@@ -72,6 +74,7 @@ export interface CreditNoteCompanyData {
   province?: string | null;
   country?: string | null;
   invoiceFooter?: string | null;
+  logoUrl?: string | null;
 }
 
 export interface CreditNoteData {
@@ -112,7 +115,8 @@ export default function CreditNotePDF({ creditNote, company }: { creditNote: Cre
         {/* Header */}
         <View style={s.header}>
           <View style={s.brand}>
-            <Text style={s.brandName}>{company.name || "Market Your Business"}</Text>
+            {company.logoUrl && <Image src={company.logoUrl} style={s.logo} />}
+            <Text style={s.brandName}>{company.name}</Text>
             {company.website && <Text style={s.brandSub}>{company.website}</Text>}
           </View>
           <View style={s.invoiceMeta}>
@@ -127,7 +131,7 @@ export default function CreditNotePDF({ creditNote, company }: { creditNote: Cre
         <View style={s.parties}>
           <View style={s.partyBlock}>
             <Text style={s.partyLabel}>Emessa da</Text>
-            <Text style={s.partyName}>{company.name || "Market Your Business"}</Text>
+            <Text style={s.partyName}>{company.name}</Text>
             {company.vatNumber && <Text style={s.partyText}>UTR: {company.vatNumber}</Text>}
             {company.email && <Text style={s.partyText}>{company.email}</Text>}
             {company.phone && <Text style={s.partyText}>{company.phone}</Text>}
@@ -206,7 +210,7 @@ export default function CreditNotePDF({ creditNote, company }: { creditNote: Cre
         {/* Footer */}
         <View style={s.footer}>
           <Text style={s.footerText}>
-            {company.invoiceFooter || `${company.name || "Market Your Business"} — ${creditNote.number}`}
+            {company.invoiceFooter || `${company.name} — ${creditNote.number}`}
           </Text>
           <Text style={s.footerText}>Documento generato elettronicamente</Text>
         </View>

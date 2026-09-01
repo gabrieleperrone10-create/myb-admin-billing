@@ -1,68 +1,69 @@
 "use server";
-import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { put, del } from "@vercel/blob";
-import type { AttachmentType } from "@prisma/client";
+import { companyAction } from "@/lib/companyAction";
 
-export async function createCategory(data: {
+export const createCategory = companyAction(async (ctx, data: {
   name: string;
   color?: string;
   tagIds?: string[];
-}) {
-  const category = await prisma.courseCategory.create({
+}) => {
+  const category = await ctx.db.courseCategory.create({
     data: {
+      companyId: ctx.companyId,
       name: data.name,
       color: data.color ?? "#4f7deb",
+      // nested write: CourseCategoryTag non passa dall'estensione
       requiredTags: data.tagIds?.length
-        ? { create: data.tagIds.map(tagId => ({ tagId })) }
+        ? { create: data.tagIds.map(tagId => ({ tagId, companyId: ctx.companyId })) }
         : undefined,
     },
   });
-  revalidatePath("/academy");
+  revalidatePath(`/${ctx.slug}/academy`);
   return category;
-}
+});
 
-export async function createCourse(data: {
+export const createCourse = companyAction(async (ctx, data: {
   categoryId: string;
   title: string;
   description?: string;
   coverImage?: string;
-}) {
-  const course = await prisma.course.create({ data });
-  revalidatePath("/academy");
+}) => {
+  const course = await ctx.db.course.create({ data: { companyId: ctx.companyId, ...data } });
+  revalidatePath(`/${ctx.slug}/academy`);
   return course;
-}
+});
 
-export async function updateCourse(id: string, data: {
+export const updateCourse = companyAction(async (ctx, id: string, data: {
   title?: string;
   description?: string;
   coverImage?: string;
   published?: boolean;
   order?: number;
-}) {
-  const course = await prisma.course.update({ where: { id }, data });
-  revalidatePath("/academy");
-  revalidatePath(`/academy/${id}`);
+}) => {
+  const course = await ctx.db.course.update({ where: { id }, data });
+  revalidatePath(`/${ctx.slug}/academy`);
+  revalidatePath(`/${ctx.slug}/academy/${id}`);
   return course;
-}
+});
 
-export async function createModule(data: {
+export const createModule = companyAction(async (ctx, data: {
   courseId: string;
   title: string;
   parentId?: string;
   order?: number;
-}) {
-  const mod = await prisma.module.create({ data });
-  revalidatePath(`/academy/${data.courseId}`);
+}) => {
+  const mod = await ctx.db.module.create({ data: { companyId: ctx.companyId, ...data } });
+  revalidatePath(`/${ctx.slug}/academy/${data.courseId}`);
   return mod;
-}
+});
 
-export async function deleteModule(id: string, courseId: string) {
-  await prisma.module.delete({ where: { id } });
-  revalidatePath(`/academy/${courseId}`);
-}
+export const deleteModule = companyAction(async (ctx, id: string, courseId: string) => {
+  await ctx.db.module.delete({ where: { id } });
+  revalidatePath(`/${ctx.slug}/academy/${courseId}`);
+});
 
-export async function createLesson(data: {
+export const createLesson = companyAction(async (ctx, data: {
   moduleId: string;
   courseId: string;
   title: string;
@@ -70,52 +71,53 @@ export async function createLesson(data: {
   content?: string;
   duration?: number;
   order?: number;
-}) {
+}) => {
   const { courseId, ...rest } = data;
-  const lesson = await prisma.lesson.create({ data: rest });
-  revalidatePath(`/academy/${courseId}`);
+  const lesson = await ctx.db.lesson.create({ data: { companyId: ctx.companyId, ...rest } });
+  revalidatePath(`/${ctx.slug}/academy/${courseId}`);
   return lesson;
-}
+});
 
-export async function updateLesson(id: string, courseId: string, data: {
+export const updateLesson = companyAction(async (ctx, id: string, courseId: string, data: {
   title?: string;
   videoUrl?: string;
   content?: string;
   duration?: number;
   published?: boolean;
-}) {
-  const lesson = await prisma.lesson.update({ where: { id }, data });
-  revalidatePath(`/academy/${courseId}`);
+}) => {
+  const lesson = await ctx.db.lesson.update({ where: { id }, data });
+  revalidatePath(`/${ctx.slug}/academy/${courseId}`);
   return lesson;
-}
+});
 
-export async function deleteLesson(id: string, courseId: string) {
-  await prisma.lesson.delete({ where: { id } });
-  revalidatePath(`/academy/${courseId}`);
-}
+export const deleteLesson = companyAction(async (ctx, id: string, courseId: string) => {
+  await ctx.db.lesson.delete({ where: { id } });
+  revalidatePath(`/${ctx.slug}/academy/${courseId}`);
+});
 
-export async function addAttachmentLink(data: {
+export const addAttachmentLink = companyAction(async (ctx, data: {
   lessonId: string;
   courseId: string;
   name: string;
   url: string;
-}) {
-  const att = await prisma.lessonAttachment.create({
-    data: { lessonId: data.lessonId, type: "LINK", name: data.name, url: data.url },
+}) => {
+  const att = await ctx.db.lessonAttachment.create({
+    data: { companyId: ctx.companyId, lessonId: data.lessonId, type: "LINK", name: data.name, url: data.url },
   });
-  revalidatePath(`/academy/${data.courseId}`);
+  revalidatePath(`/${ctx.slug}/academy/${data.courseId}`);
   return att;
-}
+});
 
-export async function addAttachmentFile(formData: FormData) {
+export const addAttachmentFile = companyAction(async (ctx, formData: FormData) => {
   const lessonId = formData.get("lessonId") as string;
   const courseId = formData.get("courseId") as string;
   const file = formData.get("file") as File;
 
-  const blob = await put(`academy/${lessonId}/${file.name}`, file, { access: "public" });
+  const blob = await put(`academy/${ctx.companyId}/${lessonId}/${file.name}`, file, { access: "public" });
 
-  const att = await prisma.lessonAttachment.create({
+  const att = await ctx.db.lessonAttachment.create({
     data: {
+      companyId: ctx.companyId,
       lessonId,
       type: "FILE",
       name: file.name,
@@ -123,27 +125,27 @@ export async function addAttachmentFile(formData: FormData) {
       size: file.size,
     },
   });
-  revalidatePath(`/academy/${courseId}`);
+  revalidatePath(`/${ctx.slug}/academy/${courseId}`);
   return att;
-}
+});
 
-export async function deleteAttachment(id: string, courseId: string, blobUrl?: string) {
+export const deleteAttachment = companyAction(async (ctx, id: string, courseId: string, blobUrl?: string) => {
   if (blobUrl) {
     try { await del(blobUrl); } catch {}
   }
-  await prisma.lessonAttachment.delete({ where: { id } });
-  revalidatePath(`/academy/${courseId}`);
-}
+  await ctx.db.lessonAttachment.delete({ where: { id } });
+  revalidatePath(`/${ctx.slug}/academy/${courseId}`);
+});
 
-export async function markLessonComplete(memberId: string, lessonId: string) {
-  await prisma.lessonProgress.upsert({
+export const markLessonComplete = companyAction(async (ctx, memberId: string, lessonId: string) => {
+  await ctx.db.lessonProgress.upsert({
     where: { memberId_lessonId: { memberId, lessonId } },
     update: {},
-    create: { memberId, lessonId },
+    create: { memberId, lessonId, companyId: ctx.companyId },
   });
-}
+});
 
-export async function deleteCourse(id: string) {
-  await prisma.course.delete({ where: { id } });
-  revalidatePath("/academy");
-}
+export const deleteCourse = companyAction(async (ctx, id: string) => {
+  await ctx.db.course.delete({ where: { id } });
+  revalidatePath(`/${ctx.slug}/academy`);
+});

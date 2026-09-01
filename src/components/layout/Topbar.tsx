@@ -5,6 +5,7 @@ import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { Download, Plus, ChevronDown, ChevronLeft, Sparkles } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { ThemeToggle } from "./ThemeToggle";
+import { companyPath } from "@/lib/paths";
 
 const SECTIONS: Record<string, string> = {
   dashboard:   "Dashboard",
@@ -59,9 +60,12 @@ export default function Topbar() {
   const pathname     = usePathname();
   const searchParams = useSearchParams();
   const router       = useRouter();
-  const parts        = pathname.split("/").filter(Boolean);
+  // Il primo segmento e' lo slug azienda: separarlo qui mantiene invariati
+  // tutti gli indici usati sotto (parts[1] per isNew/settingsSub, ecc).
+  const [companySlug, ...parts] = pathname.split("/").filter(Boolean);
   const rootKey      = parts[0] ?? "dashboard";
   const isNew        = parts[1] === "new";
+  const h            = (path: string) => companyPath(companySlug, path);
 
   const SETTINGS_SUB: Record<string, string> = { users: "Utenti", roles: "Ruoli" };
   const settingsSub = rootKey === "settings" && parts[1] ? SETTINGS_SUB[parts[1]] : null;
@@ -73,7 +77,7 @@ export default function Topbar() {
   const exportEntity = EXPORTABLE[rootKey];
 
   const showBack = isNew || isDetail;
-  const backHref = `/${rootKey}`;
+  const backHref = h(`/${rootKey}`);
 
   const [periodOpen, setPeriodOpen] = useState(false);
   const periodRef = useRef<HTMLDivElement>(null);
@@ -103,6 +107,7 @@ export default function Topbar() {
   function handleExport() {
     if (!exportEntity) return;
     const params = new URLSearchParams(searchParams.toString());
+    params.set("company", companySlug);
     window.location.href = `/api/export/${exportEntity}?${params.toString()}`;
   }
 
@@ -227,7 +232,7 @@ export default function Topbar() {
         {/* AI Invoice button — only on invoices section */}
         {rootKey === "invoices" && !isNew && !isDetail && (
           <Link
-            href="/invoices/ai"
+            href={h("/invoices/ai")}
             className="hidden md:inline-flex items-center justify-center gap-1.5 px-3 rounded-[var(--r-md)] text-[13px] font-semibold transition-colors"
             style={{
               background: "linear-gradient(135deg, #4f7deb, #8b5cf6)",
@@ -244,7 +249,7 @@ export default function Topbar() {
         {/* Primary CTA */}
         {cta && (
           <Link
-            href={cta.href}
+            href={h(cta.href)}
             className="inline-flex items-center justify-center gap-1.5 px-3 rounded-[var(--r-md)] text-[13px] font-semibold transition-colors"
             style={{
               backgroundColor: "var(--fg)",
