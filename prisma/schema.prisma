@@ -93,7 +93,12 @@ model Company {
   active Boolean @default(true)
 
   // — identità fiscale (campi ereditati da CompanySettings) —
+  // "name" è la ragione sociale: compare su fatture, note di credito e
+  // documenti fiscali. "brandName" è il nome mostrato nell'app (sidebar,
+  // switcher, titolo pagina) — utile perché più brand possono condividere
+  // la stessa ragione sociale ma vanno distinti nell'interfaccia.
   name          String    @default("")
+  brandName     String?
   email         String    @default("")
   phone         String?
   website       String?

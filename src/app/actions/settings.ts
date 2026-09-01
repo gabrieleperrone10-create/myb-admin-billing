@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { put, del } from "@vercel/blob";
 import { companyAction } from "@/lib/companyAction";
 import { requireCompany } from "@/lib/company";
 
@@ -21,6 +22,7 @@ export const saveCompanySettings = companyAction(async (ctx, formData: FormData)
     where: { id: ctx.companyId },
     data: {
       name: formData.get("name") as string,
+      brandName: (formData.get("brandName") as string) || null,
       email: formData.get("email") as string,
       phone: (formData.get("phone") as string) || null,
       website: (formData.get("website") as string) || null,
@@ -38,6 +40,23 @@ export const saveCompanySettings = companyAction(async (ctx, formData: FormData)
     },
   });
 
+  revalidatePath(`/${ctx.slug}/settings`);
+});
+
+export const uploadCompanyLogo = companyAction(async (ctx, formData: FormData) => {
+  const file = formData.get("file") as File;
+  const blob = await put(`company-logo/${ctx.companyId}/${file.name}`, file, { access: "public" });
+
+  if (ctx.company.logoUrl) { try { await del(ctx.company.logoUrl); } catch {} }
+
+  await ctx.db.company.update({ where: { id: ctx.companyId }, data: { logoUrl: blob.url } });
+  revalidatePath(`/${ctx.slug}/settings`);
+  return blob.url;
+});
+
+export const removeCompanyLogo = companyAction(async (ctx) => {
+  if (ctx.company.logoUrl) { try { await del(ctx.company.logoUrl); } catch {} }
+  await ctx.db.company.update({ where: { id: ctx.companyId }, data: { logoUrl: null } });
   revalidatePath(`/${ctx.slug}/settings`);
 });
 
