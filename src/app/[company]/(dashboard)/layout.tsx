@@ -44,7 +44,10 @@ export default async function DashboardLayout({
 
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           <Suspense fallback={null}>
-            <Topbar />
+            <Topbar
+              companies={companies.map(c => ({ slug: c.slug, name: c.name }))}
+              currentCompanyName={ctx.company.name}
+            />
           </Suspense>
 
           <main className="flex-1 overflow-y-auto">

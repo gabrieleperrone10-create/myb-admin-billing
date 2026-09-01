@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
 import { createCompany } from "@/app/actions/companies";
@@ -10,18 +9,14 @@ import { AlertCircle } from "lucide-react";
 export default function CreateCompanyForm() {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
 
   const action = (formData: FormData) => {
     setError(null);
     startTransition(async () => {
       const result = await createCompany(formData);
-      if (result.ok) {
-        router.push(`/${result.slug}/dashboard`);
-        router.refresh();
-      } else {
-        setError(result.error);
-      }
+      // Se arriva qui la creazione e' fallita: il caso di successo termina
+      // con redirect() lato server, che non torna mai un valore al client.
+      if (result) setError(result.error);
     });
   };
 

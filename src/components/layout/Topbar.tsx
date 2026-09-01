@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { Download, Plus, ChevronDown, ChevronLeft, Sparkles } from "lucide-react";
+import { Download, Plus, ChevronDown, ChevronLeft, Sparkles, Building2, Check } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { ThemeToggle } from "./ThemeToggle";
 import { companyPath } from "@/lib/paths";
+
+type CompanyOption = { slug: string; name: string };
 
 const SECTIONS: Record<string, string> = {
   dashboard:   "Dashboard",
@@ -56,7 +58,14 @@ const PERIOD_OPTIONS = [
   { label: "Da sempre",        value: "all" },
 ];
 
-export default function Topbar() {
+export default function Topbar({
+  companies,
+  currentCompanyName,
+}: {
+  companies: CompanyOption[];
+  currentCompanyName: string;
+}) {
+  const [companyOpen, setCompanyOpen] = useState(false);
   const pathname     = usePathname();
   const searchParams = useSearchParams();
   const router       = useRouter();
@@ -112,6 +121,7 @@ export default function Topbar() {
   }
 
   return (
+    <>
     <header
       className="shrink-0 flex items-center gap-3"
       style={{
@@ -163,6 +173,18 @@ export default function Topbar() {
 
       {/* Right actions */}
       <div className="flex items-center gap-2 shrink-0">
+        {/* Selettore azienda — mobile only (desktop lo ha nella sidebar) */}
+        <button
+          onClick={() => setCompanyOpen(true)}
+          className="md:hidden flex items-center justify-center rounded-[8px] shrink-0"
+          style={{ width: 32, height: 32, backgroundColor: "var(--fg)", minHeight: "unset", minWidth: "unset" }}
+          aria-label="Cambia azienda"
+        >
+          <span className="text-[12px] font-bold leading-none select-none" style={{ color: "var(--surface)" }}>
+            {currentCompanyName[0]?.toUpperCase() ?? "A"}
+          </span>
+        </button>
+
         {/* Period filter — desktop only */}
         <div className="relative hidden md:block" ref={periodRef}>
           <button
@@ -265,5 +287,84 @@ export default function Topbar() {
         )}
       </div>
     </header>
+
+    {companyOpen && (
+      <div
+        className="md:hidden fixed inset-0 z-50 animate-fade-in"
+        style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+        onClick={() => setCompanyOpen(false)}
+      >
+        <div
+          className="absolute bottom-0 left-0 right-0 animate-slide-up rounded-t-[20px] overflow-hidden"
+          style={{
+            backgroundColor: "var(--surface)",
+            paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)",
+            maxHeight: "80vh",
+            overflowY: "auto",
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex justify-center pt-3 pb-2">
+            <div className="w-10 h-1 rounded-full" style={{ backgroundColor: "var(--border)" }} />
+          </div>
+
+          <p
+            className="font-mono text-[10px] uppercase px-4 mb-2"
+            style={{ color: "var(--fg-3)", letterSpacing: "0.12em" }}
+          >
+            Azienda
+          </p>
+
+          <div className="px-2 pb-2">
+            {companies.map(c => (
+              <Link
+                key={c.slug}
+                href={companyPath(c.slug, "/dashboard")}
+                onClick={() => setCompanyOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-2.5 rounded-[var(--r-md)] text-[14px] transition-colors"
+                style={{
+                  color: c.slug === companySlug ? "var(--fg)" : "var(--fg-2)",
+                  fontWeight: c.slug === companySlug ? 600 : 400,
+                  minHeight: "unset",
+                }}
+              >
+                <span
+                  className="w-6 h-6 rounded-[5px] flex items-center justify-center shrink-0 text-[10px] font-bold"
+                  style={{ backgroundColor: "var(--subtle)", color: "var(--fg-2)" }}
+                >
+                  {c.name[0]?.toUpperCase() ?? "A"}
+                </span>
+                <span className="flex-1 truncate">{c.name}</span>
+                {c.slug === companySlug && <Check className="w-4 h-4 shrink-0" style={{ color: "var(--info)" }} />}
+              </Link>
+            ))}
+          </div>
+
+          <div style={{ height: 1, backgroundColor: "var(--border)", margin: "0 16px 8px" }} />
+
+          <div className="px-2">
+            <Link
+              href={companyPath(companySlug, "/settings/companies")}
+              onClick={() => setCompanyOpen(false)}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-[var(--r-md)] text-[14px] transition-colors"
+              style={{ color: "var(--fg-2)", minHeight: "unset" }}
+            >
+              <Building2 className="w-4 h-4 shrink-0" style={{ color: "var(--fg-3)" }} />
+              Gestisci aziende
+            </Link>
+            <Link
+              href={companyPath(companySlug, "/settings/companies")}
+              onClick={() => setCompanyOpen(false)}
+              className="flex items-center gap-2.5 px-3 py-2.5 rounded-[var(--r-md)] text-[14px] font-medium transition-colors"
+              style={{ color: "var(--info)", minHeight: "unset" }}
+            >
+              <Plus className="w-4 h-4 shrink-0" />
+              Nuova azienda
+            </Link>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

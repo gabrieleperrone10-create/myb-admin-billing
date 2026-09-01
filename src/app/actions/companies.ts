@@ -1,6 +1,7 @@
 "use server";
 
 import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
 import { basePrisma, companyDb } from "@/lib/db";
 import { seedDefaultRoles } from "@/lib/roleSeed";
 import { RESERVED_SLUGS, SLUG_PATTERN, listMyCompanies } from "@/lib/company";
@@ -25,7 +26,7 @@ function slugify(name: string) {
     .slice(0, 48);
 }
 
-export async function createCompany(formData: FormData): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
+export async function createCompany(formData: FormData): Promise<{ ok: false; error: string }> {
   const { userId } = await auth();
   if (!userId) return { ok: false, error: "Non autenticato" };
 
@@ -52,6 +53,7 @@ export async function createCompany(formData: FormData): Promise<{ ok: true; slu
   // realistico e' un errore di connessione transitorio. Se capita dopo la
   // create della Company, la pagina ruoli la ripara da sola al primo accesso
   // (getRoles() richiama seedDefaultRoles con la stessa guardia "existing===0").
+  let slugToRedirect: string;
   try {
     const company = await basePrisma.company.create({
       data: {
@@ -74,9 +76,13 @@ export async function createCompany(formData: FormData): Promise<{ ok: true; slu
       data: AUTOMATION_TYPES.map(type => ({ companyId: company.id, type, active: false })),
     });
 
-    return { ok: true, slug: company.slug };
+    slugToRedirect = company.slug;
   } catch (e) {
     console.error("createCompany error:", e);
     return { ok: false, error: "Errore durante la creazione dell'azienda. Riprova." };
   }
+
+  // redirect() lancia un segnale interno: deve stare fuori dal try/catch,
+  // altrimenti verrebbe intercettato come un errore qualunque.
+  redirect(`/${slugToRedirect}/settings?onboarding=1`);
 }
