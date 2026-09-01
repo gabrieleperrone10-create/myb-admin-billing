@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { prisma } from "@/lib/prisma";
+import { nextInvoiceNumber } from "@/lib/numbering";
 import { Resend } from "resend";
 import { renderToBuffer } from "@react-pdf/renderer";
 import InvoicePDF from "@/lib/pdf/InvoicePDF";
@@ -155,13 +156,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     }
 
     case "get_next_invoice_number": {
-      const year = new Date().getFullYear();
-      const last = await prisma.invoice.findFirst({
-        where: { number: { startsWith: `MYB-${year}-` } },
-        orderBy: { number: "desc" },
-      });
-      const seq = last ? parseInt(last.number.split("-")[2]) + 1 : 1;
-      return { number: `MYB-${year}-${String(seq).padStart(4, "0")}` };
+      return { number: await nextInvoiceNumber(prisma) };
     }
 
     case "create_and_send_invoice": {
@@ -173,13 +168,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       const invoiceStatus = (input.status as "DRAFT" | "SENT" | "PAID") ?? "SENT";
       const paidAt = input.paidAt ? new Date(String(input.paidAt)) : (invoiceStatus === "PAID" ? new Date() : undefined);
 
-      const year = issueDate.getFullYear();
-      const last = await prisma.invoice.findFirst({
-        where: { number: { startsWith: `MYB-${year}-` } },
-        orderBy: { number: "desc" },
-      });
-      const seq = last ? parseInt(last.number.split("-")[2]) + 1 : 1;
-      const number = `MYB-${year}-${String(seq).padStart(4, "0")}`;
+      const number = await nextInvoiceNumber(prisma, issueDate.getFullYear());
 
       const amount = lineItemsRaw.reduce((s, li) => s + li.quantity * li.unitPrice, 0);
 

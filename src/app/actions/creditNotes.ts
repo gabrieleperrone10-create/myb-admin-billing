@@ -3,21 +3,8 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { nextCreditNoteNumber } from "@/lib/numbering";
 
-async function nextCreditNoteNumber() {
-  const year = new Date().getFullYear();
-  // Trova il numero progressivo NC-YYYY-NNNN più alto (sequenza propria, separata dalle fatture)
-  const all = await prisma.creditNote.findMany({ select: { number: true } });
-  let max = 0;
-  for (const cn of all) {
-    const match = cn.number.match(/^NC-\d{4}-(\d+)$/);
-    if (match) {
-      const n = parseInt(match[1]);
-      if (n > max) max = n;
-    }
-  }
-  return `NC-${year}-${String(max + 1).padStart(4, "0")}`;
-}
 
 export async function createCreditNoteFromInvoice(invoiceId: string, formData: FormData) {
   const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId }, include: { client: true } });

@@ -5,6 +5,23 @@ import * as path from "path";
 
 const prisma = new PrismaClient();
 
+/**
+ * Azienda di destinazione dell'import. Obbligatoria e senza default: importare
+ * centinaia di righe nell'azienda sbagliata non e' annullabile senza ripristino.
+ *   npx tsx scripts/import-csv.ts --company=market-your-business
+ */
+const slugArg = process.argv.find(a => a.startsWith("--company="))?.split("=")[1];
+if (!slugArg) {
+  console.error("Manca --company=<slug>. Aziende disponibili:");
+  const list = await prisma.company.findMany({ select: { slug: true, name: true } });
+  list.forEach(c => console.error(`  --company=${c.slug}   (${c.name})`));
+  process.exit(1);
+}
+const company = await prisma.company.findUnique({ where: { slug: slugArg } });
+if (!company) { console.error(`Azienda "${slugArg}" inesistente.`); process.exit(1); }
+const companyId = company.id;
+console.log(`Import verso: ${company.name} (${company.slug})\n`);
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function parseAmount(s: string): number {
@@ -93,12 +110,12 @@ async function main() {
   const productMap = new Map<string, string>(); // name → id
 
   for (const nome of programmiUnici) {
-    const existing = await prisma.product.findFirst({ where: { name: nome } });
+    const existing = await prisma.product.findFirst({ where: { name: nome, companyId } });
     if (existing) {
       productMap.set(nome, existing.id);
     } else {
       const p = await prisma.product.create({
-        data: {
+        data: { companyId,
           name: nome,
           type: mapProductType(nome),
           basePrice: 0,
@@ -123,13 +140,13 @@ async function main() {
     const vatRaw = row["P.IVA"] || "";
     const countryVal = (row["Paese"] || "").replace(/#.*/g, "").trim();
 
-    const existing = await prisma.client.findUnique({ where: { email } });
+    const existing = await prisma.client.findUnique({ where: { companyId_email: { companyId, email } } });
     if (existing) {
       clientMap.set(email, existing.id);
     } else {
       try {
         const c = await prisma.client.create({
-          data: {
+          data: { companyId,
             name: (row["Nome e Cognome"] || "").trim(),
             email,
             phone: cleanPhone(row["Telefono"]) || null,
@@ -190,7 +207,7 @@ async function main() {
 
     try {
       const invoice = await prisma.invoice.create({
-        data: {
+        data: { companyId,
           number: finalNumber,
           clientId,
           amount,
@@ -207,7 +224,7 @@ async function main() {
       // Pagamento
       if (status === "PAID" && paidAt) {
         await prisma.payment.create({
-          data: {
+          data: { companyId,
             invoiceId: invoice.id,
             amount,
             method: mapPaymentMethod(row["Modalità di Pagamento"]),

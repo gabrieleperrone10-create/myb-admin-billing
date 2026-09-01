@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { sendContractCreatedEmails } from "./email";
+import { nextInvoiceNumber } from "@/lib/numbering";
 
 export async function createContract(formData: FormData) {
   const type          = formData.get("type") as "RECURRING" | "ONE_SHOT" | "INSTALLMENT";
@@ -225,16 +226,3 @@ export async function generateNextInvoice(contractId: string) {
   redirect(`/invoices/${invoice.id}`);
 }
 
-async function nextInvoiceNumber() {
-  const year = new Date().getFullYear();
-  const all  = await prisma.invoice.findMany({ select: { number: true } });
-  let max = 0;
-  for (const inv of all) {
-    const match = inv.number.match(/^MYB-\d{4}-(\d+)$/);
-    if (match) {
-      const n = parseInt(match[1]);
-      if (n > max) max = n;
-    }
-  }
-  return `MYB-${year}-${String(max + 1).padStart(4, "0")}`;
-}

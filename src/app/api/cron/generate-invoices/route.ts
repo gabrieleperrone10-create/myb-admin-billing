@@ -1,38 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { forEachCompany, isAuthorizedCron } from "@/lib/cron";
+import { invoiceNumberAllocator } from "@/lib/numbering";
 
 const PERIOD_MONTHS: Record<string, number> = {
   MONTHLY: 1, QUARTERLY: 3, ANNUALLY: 12,
 };
 
-async function nextInvoiceNumber() {
-  const year = new Date().getFullYear();
-  const all  = await prisma.invoice.findMany({ select: { number: true } });
-  let max = 0;
-  for (const inv of all) {
-    const match = inv.number.match(/^MYB-\d{4}-(\d+)$/);
-    if (match) {
-      const n = parseInt(match[1]);
-      if (n > max) max = n;
-    }
-  }
-  return `MYB-${year}-${String(max + 1).padStart(4, "0")}`;
-}
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isAuthorizedCron(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const automation = await prisma.automation.findUnique({
-    where: { type: "RECURRING_INVOICES" },
-  });
-  if (!automation?.active) {
-    return NextResponse.json({ skipped: true, reason: "automation disabled" });
-  }
+  const runs = await forEachCompany("RECURRING_INVOICES", async ({ db, company }) => {
 
-  const contracts = await prisma.contract.findMany({
+  const contracts = await db.contract.findMany({
     where: { active: true },
     include: {
       product: true,
@@ -46,6 +28,12 @@ export async function GET(req: NextRequest) {
 
   const today   = new Date();
   const created: string[] = [];
+
+  // Una sola scansione per l'intera passata: prima si rileggeva l'intera tabella
+  // Invoice per ogni rata generata (O(n^2) sui contratti arretrati).
+  const allocateInvoiceNumber = await invoiceNumberAllocator(
+    db, new Date().getFullYear(), company.invoicePrefix, company.numberPadding,
+  );
 
   for (const contract of contracts) {
     // Non iniziare le rate se il deposito non è stato pagato
@@ -84,9 +72,10 @@ export async function GET(req: NextRequest) {
       const dueDate = new Date(nextDate);
       dueDate.setDate(dueDate.getDate() + 15);
 
-      const number = await nextInvoiceNumber();
-      await prisma.invoice.create({
+      const number = allocateInvoiceNumber();
+      await db.invoice.create({
         data: {
+          companyId:  company.id,
           number,
           clientId:   contract.clientId,
           contractId: contract.id,
@@ -110,10 +99,8 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  await prisma.automation.update({
-    where: { type: "RECURRING_INVOICES" },
-    data:  { lastRunAt: new Date() },
+    return { created };
   });
 
-  return NextResponse.json({ ok: true, created });
+  return NextResponse.json({ ok: true, runs });
 }

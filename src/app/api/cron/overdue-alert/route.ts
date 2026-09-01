@@ -1,34 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { forEachCompany, isAuthorizedCron, companyMailIdentity } from "@/lib/cron";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isAuthorizedCron(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const automation = await prisma.automation.findUnique({ where: { type: "OVERDUE_ALERT" } });
-  if (!automation?.active) {
-    return NextResponse.json({ skipped: true, reason: "automation disabled" });
-  }
-
+  const runs = await forEachCompany("OVERDUE_ALERT", async ({ db, company, automation }) => {
+  const { fromName, fromEmail, replyTo } = companyMailIdentity(company);
   const config     = (automation.config ?? {}) as Record<string, unknown>;
-  const alertEmail = (config.email as string) || process.env.EMAIL_REPLY_TO || "amministrazione@marketyourbusiness.it";
+  const alertEmail = (config.email as string) || replyTo;
 
-  const [invoices, company] = await Promise.all([
-    prisma.invoice.findMany({
-      where:   { status: "OVERDUE" },
-      include: { client: true },
-      orderBy: { dueDate: "asc" },
-    }),
-    prisma.companySettings.upsert({ where: { id: "singleton" }, update: {}, create: { id: "singleton" } }),
-  ]);
-
-  const fromName  = company.name || "Market Your Business";
-  const fromEmail = process.env.EMAIL_FROM || "noreply@fatturazione.marketyourbusiness.it";
+  const invoices = await db.invoice.findMany({
+    where:   { status: "OVERDUE" },
+    include: { client: true },
+    orderBy: { dueDate: "asc" },
+  });
   const totalOverdue = invoices.reduce((s, inv) => s + inv.amount, 0);
   const fmt = (n: number) => new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(n);
   const fmtDate = (d: Date | string) => new Intl.DateTimeFormat("it-IT").format(new Date(d));
@@ -112,9 +102,10 @@ export async function GET(req: NextRequest) {
     html,
   });
 
-  if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  if (error) throw new Error(error.message);
 
-  await prisma.automation.update({ where: { type: "OVERDUE_ALERT" }, data: { lastRunAt: new Date() } });
+    return { sentTo: alertEmail, invoices: invoices.length, total: totalOverdue };
+  });
 
-  return NextResponse.json({ ok: true, sentTo: alertEmail, invoices: invoices.length, total: totalOverdue });
+  return NextResponse.json({ ok: true, runs });
 }

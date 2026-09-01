@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { forEachCompany, isAuthorizedCron, companyMailIdentity } from "@/lib/cron";
 import { Resend } from "resend";
 import { renderToBuffer } from "@react-pdf/renderer";
 import InvoicePDF from "@/lib/pdf/InvoicePDF";
@@ -8,38 +8,28 @@ import React from "react";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!isAuthorizedCron(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const automation = await prisma.automation.findUnique({ where: { type: "OVERDUE_REMINDER" } });
-  if (!automation?.active) {
-    return NextResponse.json({ skipped: true, reason: "automation disabled" });
   }
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Porta a OVERDUE le fatture SENT scadute
-  await prisma.invoice.updateMany({
+  const runs = await forEachCompany("OVERDUE_REMINDER", async ({ db, company }) => {
+  // Porta a OVERDUE le fatture SENT scadute.
+  // Questa updateMany prima non era filtrata: la passata di un'azienda marcava
+  // OVERDUE anche le fatture delle altre.
+  await db.invoice.updateMany({
     where: { status: "SENT", dueDate: { lt: today } },
     data:  { status: "OVERDUE" },
   });
 
-  // Trova tutte le fatture OVERDUE con cliente
-  const invoices = await prisma.invoice.findMany({
+  const invoices = await db.invoice.findMany({
     where:   { status: "OVERDUE" },
     include: { client: true },
   });
 
-  const company = await prisma.companySettings.upsert({
-    where: { id: "singleton" }, update: {}, create: { id: "singleton" },
-  });
-
-  const fromName  = company.name || "Market Your Business";
-  const fromEmail = process.env.EMAIL_FROM || "noreply@fatturazione.marketyourbusiness.it";
-  const replyTo   = process.env.EMAIL_REPLY_TO || "amministrazione@marketyourbusiness.it";
+  const { fromName, fromEmail, replyTo } = companyMailIdentity(company);
 
   const reminded: string[] = [];
   const skipped:  string[] = [];
@@ -134,14 +124,15 @@ export async function GET(req: NextRequest) {
         attachments: [{ filename: `${invoice.number}.pdf`, content: Buffer.from(pdfBuffer).toString("base64") }],
       });
 
-      await prisma.invoice.update({ where: { id: invoice.id }, data: { sentAt: new Date() } });
+      await db.invoice.update({ where: { id: invoice.id }, data: { sentAt: new Date() } });
       reminded.push(invoice.number);
     } catch {
       skipped.push(invoice.number);
     }
   }
 
-  await prisma.automation.update({ where: { type: "OVERDUE_REMINDER" }, data: { lastRunAt: new Date() } });
+    return { reminded, skipped };
+  });
 
-  return NextResponse.json({ ok: true, reminded, skipped });
+  return NextResponse.json({ ok: true, runs });
 }

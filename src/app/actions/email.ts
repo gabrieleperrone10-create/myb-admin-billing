@@ -1,6 +1,7 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { companyDb } from "@/lib/db";
+import { companyMailIdentity } from "@/lib/cron";
 import { renderToBuffer } from "@react-pdf/renderer";
 import InvoicePDF from "@/lib/pdf/InvoicePDF";
 import CreditNotePDF from "@/lib/pdf/CreditNotePDF";
@@ -10,10 +11,11 @@ import React from "react";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-export async function sendInvoiceEmail(invoiceId: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendInvoiceEmail(companyId: string, invoiceId: string): Promise<{ ok: boolean; error?: string }> {
+  const db = companyDb(companyId);
   const [invoice, company] = await Promise.all([
-    prisma.invoice.findUnique({ where: { id: invoiceId }, include: { client: true } }),
-    prisma.companySettings.upsert({ where: { id: "singleton" }, update: {}, create: { id: "singleton" } }),
+    db.invoice.findUnique({ where: { id: invoiceId }, include: { client: true } }),
+    db.company.findUniqueOrThrow({ where: { id: companyId } }),
   ]);
 
   if (!invoice) return { ok: false, error: "Fattura non trovata" };
@@ -73,9 +75,7 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<{ ok: boolean
 
   const pdfBuffer = await renderToBuffer(element);
 
-  const fromName = company.name || "Market Your Business";
-  const fromEmail = process.env.EMAIL_FROM || "noreply@fatturazione.marketyourbusiness.it";
-  const replyTo = process.env.EMAIL_REPLY_TO || "amministrazione@marketyourbusiness.it";
+  const { fromName, fromEmail, replyTo } = companyMailIdentity(company);
   const isPaid = invoice.status === "PAID";
   const isOverdue = invoice.status === "OVERDUE";
   const dueDate = new Intl.DateTimeFormat("it-IT").format(new Date(invoice.dueDate));
@@ -160,7 +160,7 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<{ ok: boolean
 
     if (error) return { ok: false, error: error.message };
 
-    await prisma.invoice.update({
+    await db.invoice.update({
       where: { id: invoiceId },
       data: { status: invoice.status === "DRAFT" ? "SENT" : invoice.status, sentAt: new Date() },
     });
@@ -174,10 +174,11 @@ export async function sendInvoiceEmail(invoiceId: string): Promise<{ ok: boolean
   }
 }
 
-export async function sendCreditNoteEmail(creditNoteId: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendCreditNoteEmail(companyId: string, creditNoteId: string): Promise<{ ok: boolean; error?: string }> {
+  const db = companyDb(companyId);
   const [creditNote, company] = await Promise.all([
-    prisma.creditNote.findUnique({ where: { id: creditNoteId } }),
-    prisma.companySettings.upsert({ where: { id: "singleton" }, update: {}, create: { id: "singleton" } }),
+    db.creditNote.findUnique({ where: { id: creditNoteId } }),
+    db.company.findUniqueOrThrow({ where: { id: companyId } }),
   ]);
 
   if (!creditNote) return { ok: false, error: "Nota di credito non trovata" };
@@ -235,9 +236,7 @@ export async function sendCreditNoteEmail(creditNoteId: string): Promise<{ ok: b
 
   const pdfBuffer = await renderToBuffer(element);
 
-  const fromName = company.name || "Market Your Business";
-  const fromEmail = process.env.EMAIL_FROM || "noreply@fatturazione.marketyourbusiness.it";
-  const replyTo = process.env.EMAIL_REPLY_TO || "amministrazione@marketyourbusiness.it";
+  const { fromName, fromEmail, replyTo } = companyMailIdentity(company);
   const amount = new Intl.NumberFormat("it-IT", { style: "currency", currency: creditNote.currency }).format(creditNote.amount);
 
   const html = `
@@ -293,7 +292,7 @@ export async function sendCreditNoteEmail(creditNoteId: string): Promise<{ ok: b
 
     if (error) return { ok: false, error: error.message };
 
-    await prisma.creditNote.update({
+    await db.creditNote.update({
       where: { id: creditNoteId },
       data: { status: "SENT", sentAt: new Date() },
     });
@@ -319,17 +318,16 @@ const BILLING_PERIOD_LABEL: Record<string, string> = {
   ANNUALLY: "annuale",
 };
 
-export async function sendContractCreatedEmails(contractId: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendContractCreatedEmails(companyId: string, contractId: string): Promise<{ ok: boolean; error?: string }> {
+  const db = companyDb(companyId);
   const [contract, company] = await Promise.all([
-    prisma.contract.findUnique({ where: { id: contractId }, include: { client: true, product: true } }),
-    prisma.companySettings.upsert({ where: { id: "singleton" }, update: {}, create: { id: "singleton" } }),
+    db.contract.findUnique({ where: { id: contractId }, include: { client: true, product: true } }),
+    db.company.findUniqueOrThrow({ where: { id: companyId } }),
   ]);
 
   if (!contract) return { ok: false, error: "Contratto non trovato" };
 
-  const fromName  = company.name || "Market Your Business";
-  const fromEmail = process.env.EMAIL_FROM || "noreply@fatturazione.marketyourbusiness.it";
-  const replyTo   = process.env.EMAIL_REPLY_TO || "amministrazione@marketyourbusiness.it";
+  const { fromName, fromEmail, replyTo } = companyMailIdentity(company);
 
   const amount      = new Intl.NumberFormat("it-IT", { style: "currency", currency: contract.currency }).format(contract.amount);
   const startDate   = new Intl.DateTimeFormat("it-IT").format(new Date(contract.startDate));
@@ -423,17 +421,16 @@ export async function sendContractCreatedEmails(contractId: string): Promise<{ o
   return clientOk ? { ok: true } : { ok: false, error: clientError };
 }
 
-export async function sendContractExpiringEmails(contractId: string, daysUntil: 30 | 7 | 1 | 0): Promise<{ ok: boolean; error?: string }> {
+export async function sendContractExpiringEmails(companyId: string, contractId: string, daysUntil: 30 | 7 | 1 | 0): Promise<{ ok: boolean; error?: string }> {
+  const db = companyDb(companyId);
   const [contract, company] = await Promise.all([
-    prisma.contract.findUnique({ where: { id: contractId }, include: { client: true, product: true } }),
-    prisma.companySettings.upsert({ where: { id: "singleton" }, update: {}, create: { id: "singleton" } }),
+    db.contract.findUnique({ where: { id: contractId }, include: { client: true, product: true } }),
+    db.company.findUniqueOrThrow({ where: { id: companyId } }),
   ]);
 
   if (!contract || !contract.endDate) return { ok: false, error: "Contratto non trovato o senza scadenza" };
 
-  const fromName   = company.name || "Market Your Business";
-  const fromEmail  = process.env.EMAIL_FROM || "noreply@fatturazione.marketyourbusiness.it";
-  const replyTo    = process.env.EMAIL_REPLY_TO || "amministrazione@marketyourbusiness.it";
+  const { fromName, fromEmail, replyTo } = companyMailIdentity(company);
   const endDateFmt = new Intl.DateTimeFormat("it-IT").format(new Date(contract.endDate));
 
   let badgeLabel: string, accentColor: string, badgeBg: string, subject: string, clientBody: string, internalUrgency: string;
