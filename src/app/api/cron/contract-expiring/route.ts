@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { forEachCompany, isAuthorizedCron } from "@/lib/cron";
-import { sendContractExpiringEmails } from "@/app/actions/email";
+import { sendContractExpiringEmails } from "@/lib/mail";
 
 const THRESHOLDS = [30, 7, 1, 0] as const;
 

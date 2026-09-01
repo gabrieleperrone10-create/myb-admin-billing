@@ -1,9 +1,9 @@
 "use server";
-import { prisma } from "@/lib/prisma";
 import { EventType, RsvpStatus, RecurrenceType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { companyAction } from "@/lib/companyAction";
 
-export async function createEvent(data: {
+export const createEvent = companyAction(async (ctx, data: {
   title: string;
   description?: string;
   type: EventType;
@@ -15,13 +15,13 @@ export async function createEvent(data: {
   recurrence?: RecurrenceType;
   recurrenceInterval?: number;
   recurrenceEndDate?: Date;
-}) {
-  const event = await prisma.event.create({ data });
-  revalidatePath("/events");
+}) => {
+  const event = await ctx.db.event.create({ data: { companyId: ctx.companyId, ...data } });
+  revalidatePath(`/${ctx.slug}/events`);
   return event;
-}
+});
 
-export async function updateEvent(id: string, data: {
+export const updateEvent = companyAction(async (ctx, id: string, data: {
   title?: string;
   description?: string;
   type?: EventType;
@@ -33,22 +33,22 @@ export async function updateEvent(id: string, data: {
   recurrence?: RecurrenceType;
   recurrenceInterval?: number;
   recurrenceEndDate?: Date | null;
-}) {
-  const event = await prisma.event.update({ where: { id }, data });
-  revalidatePath("/events");
+}) => {
+  const event = await ctx.db.event.update({ where: { id }, data });
+  revalidatePath(`/${ctx.slug}/events`);
   return event;
-}
+});
 
-export async function deleteEvent(id: string) {
-  await prisma.event.delete({ where: { id } });
-  revalidatePath("/events");
-}
+export const deleteEvent = companyAction(async (ctx, id: string) => {
+  await ctx.db.event.delete({ where: { id } });
+  revalidatePath(`/${ctx.slug}/events`);
+});
 
-export async function rsvpEvent(memberId: string, eventId: string, status: RsvpStatus) {
-  await prisma.eventRsvp.upsert({
+export const rsvpEvent = companyAction(async (ctx, memberId: string, eventId: string, status: RsvpStatus) => {
+  await ctx.db.eventRsvp.upsert({
     where: { memberId_eventId: { memberId, eventId } },
     update: { status },
-    create: { memberId, eventId, status },
+    create: { companyId: ctx.companyId, memberId, eventId, status },
   });
-  revalidatePath("/events");
-}
+  revalidatePath(`/${ctx.slug}/events`);
+});

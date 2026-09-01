@@ -1,20 +1,19 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { companyAction } from "@/lib/companyAction";
 import { nextCreditNoteNumber } from "@/lib/numbering";
 
-
-export async function createCreditNoteFromInvoice(invoiceId: string, formData: FormData) {
-  const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId }, include: { client: true } });
+export const createCreditNoteFromInvoice = companyAction(async (ctx, invoiceId: string, formData: FormData) => {
+  const invoice = await ctx.db.invoice.findUnique({ where: { id: invoiceId }, include: { client: true } });
   if (!invoice) throw new Error("Fattura non trovata");
 
   const amountRaw = formData.get("amount") as string;
   const amount = amountRaw ? parseFloat(amountRaw) : invoice.amount;
   const reason = (formData.get("reason") as string) || "";
 
-  const number = await nextCreditNoteNumber();
+  const number = await nextCreditNoteNumber(ctx.db, ctx.company.creditNotePrefix, ctx.company.numberPadding);
   const lineItems = [{
     description: `Storno fattura ${invoice.number}${reason ? " — " + reason : ""}`,
     quantity: 1,
@@ -22,8 +21,9 @@ export async function createCreditNoteFromInvoice(invoiceId: string, formData: F
     total: amount,
   }];
 
-  const creditNote = await prisma.creditNote.create({
+  const creditNote = await ctx.db.creditNote.create({
     data: {
+      companyId: ctx.companyId,
       number,
       invoiceId: invoice.id,
       clientId: invoice.clientId,
@@ -46,19 +46,19 @@ export async function createCreditNoteFromInvoice(invoiceId: string, formData: F
     },
   });
 
-  revalidatePath("/credit-notes");
-  revalidatePath(`/invoices/${invoiceId}`);
-  redirect(`/credit-notes/${creditNote.id}`);
-}
+  revalidatePath(`/${ctx.slug}/credit-notes`);
+  revalidatePath(`/${ctx.slug}/invoices/${invoiceId}`);
+  redirect(`/${ctx.slug}/credit-notes/${creditNote.id}`);
+});
 
-export async function createManualCreditNote(formData: FormData) {
+export const createManualCreditNote = companyAction(async (ctx, formData: FormData) => {
   const amount = parseFloat(formData.get("amount") as string);
   const reason = (formData.get("reason") as string) || "";
   const originalInvoiceNumber = formData.get("originalInvoiceNumber") as string;
   const originalInvoiceDateRaw = formData.get("originalInvoiceDate") as string | null;
   const issueDateRaw = formData.get("issueDate") as string | null;
 
-  const number = await nextCreditNoteNumber();
+  const number = await nextCreditNoteNumber(ctx.db, ctx.company.creditNotePrefix, ctx.company.numberPadding);
   const lineItems = [{
     description: `Storno fattura ${originalInvoiceNumber}${reason ? " — " + reason : ""}`,
     quantity: 1,
@@ -66,8 +66,9 @@ export async function createManualCreditNote(formData: FormData) {
     total: amount,
   }];
 
-  const creditNote = await prisma.creditNote.create({
+  const creditNote = await ctx.db.creditNote.create({
     data: {
+      companyId: ctx.companyId,
       number,
       clientId: (formData.get("clientId") as string) || null,
       clientName: formData.get("clientName") as string,
@@ -91,23 +92,23 @@ export async function createManualCreditNote(formData: FormData) {
     },
   });
 
-  revalidatePath("/credit-notes");
-  redirect(`/credit-notes/${creditNote.id}`);
-}
+  revalidatePath(`/${ctx.slug}/credit-notes`);
+  redirect(`/${ctx.slug}/credit-notes/${creditNote.id}`);
+});
 
-export async function updateCreditNoteStatus(id: string, status: "CANCELLED") {
-  await prisma.creditNote.update({ where: { id }, data: { status } });
-  revalidatePath("/credit-notes");
-  revalidatePath(`/credit-notes/${id}`);
-}
+export const updateCreditNoteStatus = companyAction(async (ctx, id: string, status: "CANCELLED") => {
+  await ctx.db.creditNote.update({ where: { id }, data: { status } });
+  revalidatePath(`/${ctx.slug}/credit-notes`);
+  revalidatePath(`/${ctx.slug}/credit-notes/${id}`);
+});
 
-export async function deleteCreditNote(id: string) {
-  const creditNote = await prisma.creditNote.findUnique({ where: { id }, select: { status: true } });
+export const deleteCreditNote = companyAction(async (ctx, id: string) => {
+  const creditNote = await ctx.db.creditNote.findUnique({ where: { id }, select: { status: true } });
   if (!creditNote) return;
   if (creditNote.status === "SENT") {
     throw new Error("Non è possibile eliminare una nota di credito già inviata al cliente.");
   }
-  await prisma.creditNote.delete({ where: { id } });
-  revalidatePath("/credit-notes");
-  redirect("/credit-notes");
-}
+  await ctx.db.creditNote.delete({ where: { id } });
+  revalidatePath(`/${ctx.slug}/credit-notes`);
+  redirect(`/${ctx.slug}/credit-notes`);
+});

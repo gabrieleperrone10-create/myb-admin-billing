@@ -1,19 +1,21 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { sendInvoiceEmail } from "@/app/actions/email";
+import { sendCreditNoteEmail } from "@/app/actions/email";
+import { useCompanySlug } from "@/lib/useCompany";
 import { Mail, CheckCircle, AlertCircle } from "lucide-react";
 
-interface Props { invoiceId: string; clientEmail: string | null }
+interface Props { creditNoteId: string; clientEmail: string | null }
 
-export default function SendEmailButton({ invoiceId, clientEmail }: Props) {
+export default function SendCreditNoteEmailButton({ creditNoteId, clientEmail }: Props) {
+  const slug = useCompanySlug();
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<{ ok: boolean; error?: string } | null>(null);
 
   const handleSend = () => {
     setResult(null);
     startTransition(async () => {
-      const res = await sendInvoiceEmail(invoiceId);
+      const res = await sendCreditNoteEmail(slug, creditNoteId);
       setResult(res);
       if (res.ok) setTimeout(() => setResult(null), 4000);
     });
