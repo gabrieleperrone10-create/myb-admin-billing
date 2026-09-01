@@ -4,17 +4,20 @@ import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { ChevronsUpDown, Check, Building2, Plus } from "lucide-react";
 import { companyPath } from "@/lib/paths";
+import { CompanyAvatar } from "./CompanyAvatar";
 
-type CompanyOption = { slug: string; name: string };
+type CompanyOption = { slug: string; name: string; logoUrl?: string | null };
 
 export function CompanySwitcher({
   companies,
   currentSlug,
   currentName,
+  currentLogoUrl,
 }: {
   companies: CompanyOption[];
   currentSlug: string;
   currentName: string;
+  currentLogoUrl?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -34,14 +37,7 @@ export function CompanySwitcher({
         className="flex items-center gap-2.5 px-4 w-full transition-colors"
         style={{ borderBottom: "1px solid var(--border)", height: "var(--topbar-h)", minHeight: "unset" }}
       >
-        <div
-          className="w-[22px] h-[22px] rounded-[5px] flex items-center justify-center shrink-0"
-          style={{ backgroundColor: "var(--fg)" }}
-        >
-          <span className="text-[11px] font-bold leading-none select-none" style={{ color: "var(--surface)" }}>
-            {currentName[0]?.toUpperCase() ?? "A"}
-          </span>
-        </div>
+        <CompanyAvatar name={currentName} logoUrl={currentLogoUrl} size={22} radius={5} variant="solid" />
         <span
           className="text-[13px] font-semibold truncate flex-1 text-left"
           style={{ color: "var(--fg)", letterSpacing: "-0.01em" }}
@@ -74,12 +70,7 @@ export function CompanySwitcher({
                 minHeight: "unset",
               }}
             >
-              <span
-                className="w-5 h-5 rounded-[4px] flex items-center justify-center shrink-0 text-[9px] font-bold"
-                style={{ backgroundColor: "var(--subtle)", color: "var(--fg-2)" }}
-              >
-                {c.name[0]?.toUpperCase() ?? "A"}
-              </span>
+              <CompanyAvatar name={c.name} logoUrl={c.logoUrl} size={20} radius={4} variant="subtle" />
               <span className="flex-1 truncate">{c.name}</span>
               {c.slug === currentSlug && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--info)" }} />}
             </Link>

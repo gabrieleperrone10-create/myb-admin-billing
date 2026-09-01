@@ -3,6 +3,7 @@ import { clerkClient } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 import { seedDefaultRoles } from "@/lib/roleSeed";
 import { companyAction } from "@/lib/companyAction";
+import { companyDisplayName } from "@/lib/company";
 
 export const listUsers = companyAction(async (ctx) => {
   await seedDefaultRoles(ctx.db, ctx.companyId, ctx.userId);
@@ -59,15 +60,16 @@ export const createNewUser = companyAction(async (ctx, data: {
     const fromEmail = ctx.company.emailFromAddress ?? process.env.EMAIL_FROM!;
     const replyTo   = ctx.company.emailReplyTo ?? process.env.EMAIL_REPLY_TO;
     const appUrl    = process.env.NEXT_PUBLIC_APP_URL ?? "";
+    const brand     = companyDisplayName(ctx.company);
     await resend.emails.send({
       from: fromEmail,
       to: data.email,
       replyTo,
-      subject: `Accesso al gestionale – ${ctx.company.name}`,
+      subject: `Accesso al gestionale – ${brand}`,
       html: `<p>Ciao ${name},</p>
-<p>Il tuo account per il gestionale di ${ctx.company.name} è stato creato.</p>
+<p>Il tuo account per il gestionale di ${brand} è stato creato.</p>
 <p>Per accedere vai su <a href="${appUrl}/sign-in">${appUrl.replace(/^https?:\/\//, "")}/sign-in</a>, clicca su <strong>"Password dimenticata?"</strong> e inserisci la tua email <strong>${data.email}</strong> per impostare la tua password.</p>
-<p>${ctx.company.name}</p>`,
+<p>${brand}</p>`,
     });
 
     revalidatePath(`/${ctx.slug}/settings/users`);

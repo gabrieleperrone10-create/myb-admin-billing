@@ -70,15 +70,17 @@ const sistema = [
   { href: "/settings/roles", label: "Ruoli",      icon: Shield },
 ];
 
-type CompanyOption = { slug: string; name: string };
+type CompanyOption = { slug: string; name: string; logoUrl?: string | null };
 
 export default function Sidebar({
   allowedSections = [],
   companyName = "Azienda",
+  companyLogoUrl,
   companies = [],
 }: {
   allowedSections?: AppSection[];
   companyName?: string;
+  companyLogoUrl?: string | null;
   companies?: CompanyOption[];
 }) {
   const slug = useCompanySlug();
@@ -138,9 +140,10 @@ export default function Sidebar({
     >
       {/* Selettore azienda */}
       <CompanySwitcher
-        companies={companies.length > 0 ? companies : [{ slug, name: companyName }]}
+        companies={companies.length > 0 ? companies : [{ slug, name: companyName, logoUrl: companyLogoUrl }]}
         currentSlug={slug}
         currentName={companyName}
+        currentLogoUrl={companyLogoUrl}
       />
 
       {/* Search */}

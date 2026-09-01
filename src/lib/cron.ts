@@ -1,6 +1,7 @@
 import "server-only";
 import type { Automation, Company } from "@prisma/client";
 import { basePrisma, companyDb, type CompanyDb } from "@/lib/db";
+import { companyDisplayName } from "@/lib/company";
 
 /**
  * Autorizzazione dei cron di Vercel.
@@ -80,7 +81,7 @@ export async function forEachCompany<T>(
 /** Mittente e destinatari, per azienda, con fallback sulle env globali. */
 export function companyMailIdentity(company: Company) {
   return {
-    fromName:  company.emailFromName ?? company.name,
+    fromName:  company.emailFromName ?? companyDisplayName(company),
     fromEmail: company.emailFromAddress ?? process.env.EMAIL_FROM ?? "",
     replyTo:   company.emailReplyTo ?? process.env.EMAIL_REPLY_TO ?? "",
   };

@@ -3,7 +3,7 @@
 import { useTransition, useState, useRef } from "react";
 import { Input, Textarea } from "@/components/ui/FormField";
 import { Button } from "@/components/ui/Button";
-import { saveCompanySettings } from "@/app/actions/settings";
+import { saveCompanySettings, uploadCompanyLogo, removeCompanyLogo } from "@/app/actions/settings";
 import { useCompanySlug } from "@/lib/useCompany";
 import type { Company } from "@prisma/client";
 import { Check } from "lucide-react";
@@ -26,6 +26,10 @@ export default function SettingsForm({ settings }: Props) {
   const [active, setActive] = useState("azienda");
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({});
 
+  const [logoUrl, setLogoUrl] = useState(settings.logoUrl ?? null);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
   function scrollTo(id: string) {
     setActive(id);
     sectionRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -38,6 +42,25 @@ export default function SettingsForm({ settings }: Props) {
       setTimeout(() => setSaved(false), 3000);
     });
   };
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoBusy(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    const url = await uploadCompanyLogo(slug, fd);
+    setLogoUrl(url);
+    setLogoBusy(false);
+    if (logoInputRef.current) logoInputRef.current.value = "";
+  }
+
+  async function handleLogoRemove() {
+    setLogoBusy(true);
+    await removeCompanyLogo(slug);
+    setLogoUrl(null);
+    setLogoBusy(false);
+  }
 
   return (
     <div className="flex gap-8">
@@ -73,10 +96,62 @@ export default function SettingsForm({ settings }: Props) {
         >
           <div>
             <p className="text-[13px] font-medium text-fg">Dati azienda</p>
-            <p className="text-[12px] text-fg-3 mt-0.5">Appaiono nella sezione &quot;Emessa da&quot; di ogni fattura.</p>
+            <p className="text-[12px] text-fg-3 mt-0.5">Nome legale e contatti: appaiono nella sezione &quot;Emessa da&quot; di ogni fattura.</p>
           </div>
+
+          {/* Logo */}
+          <div className="flex items-center gap-4">
+            <div
+              className="shrink-0 flex items-center justify-center overflow-hidden"
+              style={{ width: 64, height: 64, borderRadius: "var(--r-md)", backgroundColor: "var(--subtle)", border: "1px solid var(--border)" }}
+            >
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt="Logo azienda" className="w-full h-full object-contain" />
+              ) : (
+                <span className="text-[22px] font-bold" style={{ color: "var(--fg-3)" }}>
+                  {(settings.brandName || settings.name)[0]?.toUpperCase() ?? "A"}
+                </span>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <div className="flex gap-2">
+                <Button type="button" variant="secondary" size="sm" loading={logoBusy} onClick={() => logoInputRef.current?.click()}>
+                  {logoUrl ? "Cambia logo" : "Carica logo"}
+                </Button>
+                {logoUrl && (
+                  <Button type="button" variant="ghost" size="sm" disabled={logoBusy} onClick={handleLogoRemove}>
+                    Rimuovi
+                  </Button>
+                )}
+              </div>
+              <p className="text-[11px] text-fg-3">PNG o SVG con sfondo trasparente, almeno 200×200px. Sostituisce l&apos;iniziale nello switcher aziende, in fattura e nelle email.</p>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                className="hidden"
+                onChange={handleLogoUpload}
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input label="Nome azienda / Brand" name="name" required placeholder="La Mia Azienda SRL" defaultValue={settings.name} />
+            <Input
+              label="Nome legale"
+              name="name"
+              required
+              placeholder="La Mia Azienda SRL"
+              defaultValue={settings.name}
+              hint="Ragione sociale: usata su fatture, note di credito e documenti fiscali."
+            />
+            <Input
+              label="Nome brand"
+              name="brandName"
+              placeholder="se vuoto, usa il nome legale"
+              defaultValue={settings.brandName ?? ""}
+              hint="Mostrato nell'app (sidebar, switcher aziende, titolo pagina). Utile se più brand condividono lo stesso nome legale."
+            />
             <Input label="Email aziendale" name="email" type="email" required placeholder="info@example.com" defaultValue={settings.email} />
             <Input label="Telefono" name="phone" type="tel" placeholder="+44 7700 000000" defaultValue={settings.phone ?? ""} />
             <Input label="Sito web" name="website" placeholder="www.miaazienda.com" defaultValue={settings.website ?? ""} />

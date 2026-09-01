@@ -6,8 +6,9 @@ import { Download, Plus, ChevronDown, ChevronLeft, Sparkles, Building2, Check } 
 import { useState, useRef, useEffect } from "react";
 import { ThemeToggle } from "./ThemeToggle";
 import { companyPath } from "@/lib/paths";
+import { CompanyAvatar } from "./CompanyAvatar";
 
-type CompanyOption = { slug: string; name: string };
+type CompanyOption = { slug: string; name: string; logoUrl?: string | null };
 
 const SECTIONS: Record<string, string> = {
   dashboard:   "Dashboard",
@@ -61,9 +62,11 @@ const PERIOD_OPTIONS = [
 export default function Topbar({
   companies,
   currentCompanyName,
+  currentCompanyLogoUrl,
 }: {
   companies: CompanyOption[];
   currentCompanyName: string;
+  currentCompanyLogoUrl?: string | null;
 }) {
   const [companyOpen, setCompanyOpen] = useState(false);
   const pathname     = usePathname();
@@ -176,13 +179,11 @@ export default function Topbar({
         {/* Selettore azienda — mobile only (desktop lo ha nella sidebar) */}
         <button
           onClick={() => setCompanyOpen(true)}
-          className="md:hidden flex items-center justify-center rounded-[8px] shrink-0"
-          style={{ width: 32, height: 32, backgroundColor: "var(--fg)", minHeight: "unset", minWidth: "unset" }}
+          className="md:hidden flex items-center justify-center shrink-0"
+          style={{ width: 32, height: 32, minHeight: "unset", minWidth: "unset" }}
           aria-label="Cambia azienda"
         >
-          <span className="text-[12px] font-bold leading-none select-none" style={{ color: "var(--surface)" }}>
-            {currentCompanyName[0]?.toUpperCase() ?? "A"}
-          </span>
+          <CompanyAvatar name={currentCompanyName} logoUrl={currentCompanyLogoUrl} size={32} radius={8} variant="solid" />
         </button>
 
         {/* Period filter — desktop only */}
@@ -328,12 +329,7 @@ export default function Topbar({
                   minHeight: "unset",
                 }}
               >
-                <span
-                  className="w-6 h-6 rounded-[5px] flex items-center justify-center shrink-0 text-[10px] font-bold"
-                  style={{ backgroundColor: "var(--subtle)", color: "var(--fg-2)" }}
-                >
-                  {c.name[0]?.toUpperCase() ?? "A"}
-                </span>
+                <CompanyAvatar name={c.name} logoUrl={c.logoUrl} size={24} radius={5} variant="subtle" />
                 <span className="flex-1 truncate">{c.name}</span>
                 {c.slug === companySlug && <Check className="w-4 h-4 shrink-0" style={{ color: "var(--info)" }} />}
               </Link>
