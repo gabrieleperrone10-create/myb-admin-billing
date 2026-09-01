@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { prisma } from "@/lib/prisma";
+import { requireCompanyFromRequest } from "@/lib/company";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -13,10 +13,14 @@ function tiptapToText(content: unknown): string {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireCompanyFromRequest(req);
+  if ("response" in auth) return auth.response;
+  const { db, company } = auth.ctx;
+
   const { question, sopId } = await req.json();
   if (!question) return NextResponse.json({ error: "No question" }, { status: 400 });
 
-  const sops = await prisma.sop.findMany({
+  const sops = await db.sop.findMany({
     where: { published: true },
     include: { folder: true, tags: { include: { tag: true } }, attachments: true },
     orderBy: { title: "asc" },
@@ -38,7 +42,7 @@ export async function POST(req: NextRequest) {
     ].filter(Boolean).join("\n");
   }).join("\n\n---\n\n");
 
-  const system = `Sei l'assistente AI per le SOP (Standard Operating Procedures) di Market Your Business.
+  const system = `Sei l'assistente AI per le SOP (Standard Operating Procedures) di ${company.name}.
 Hai accesso a tutte le procedure operative del team. Rispondi sempre in italiano.
 
 Quando rispondi:

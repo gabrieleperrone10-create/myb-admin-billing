@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { Send, Sparkles, RotateCcw, Bot, User } from "lucide-react";
+import { useCompanySlug } from "@/lib/useCompany";
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -68,6 +69,7 @@ function MessageBubble({ msg }: { msg: Message }) {
 }
 
 export default function InvoiceAIClient() {
+  const slug = useCompanySlug();
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -94,7 +96,7 @@ export default function InvoiceAIClient() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/invoices/ai", {
+      const res = await fetch(`/api/invoices/ai?company=${slug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

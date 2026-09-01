@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { requireCompanyFromRequest } from "@/lib/company";
 
 function toCSV(rows: Record<string, unknown>[]): string {
   if (rows.length === 0) return "";
@@ -38,9 +38,14 @@ export async function GET(
   { params }: { params: Promise<{ entity: string }> },
 ) {
   const { entity } = await params;
-  const sp         = req.nextUrl.searchParams;
-  const q          = sp.get("q") ?? "";
-  const range      = dateRange(sp);
+
+  const auth = await requireCompanyFromRequest(req);
+  if ("response" in auth) return auth.response;
+  const { db } = auth.ctx;
+
+  const sp    = req.nextUrl.searchParams;
+  const q     = sp.get("q") ?? "";
+  const range = dateRange(sp);
 
   let csv = "";
   let filename = entity;
@@ -48,7 +53,7 @@ export async function GET(
   try {
     switch (entity) {
       case "clients": {
-        const rows = await prisma.client.findMany({
+        const rows = await db.client.findMany({
           where: q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { email: { contains: q, mode: "insensitive" } }, { company: { contains: q, mode: "insensitive" } }] } : undefined,
           orderBy: { createdAt: "desc" },
         });
@@ -57,7 +62,7 @@ export async function GET(
       }
       case "invoices": {
         const status = sp.get("status");
-        const rows = await prisma.invoice.findMany({
+        const rows = await db.invoice.findMany({
           where: {
             ...(status ? { status: status as never } : {}),
             ...(range ? { issueDate: range } : {}),
@@ -70,7 +75,7 @@ export async function GET(
         break;
       }
       case "payments": {
-        const rows = await prisma.payment.findMany({
+        const rows = await db.payment.findMany({
           where: { ...(range ? { paidAt: range } : {}), ...(q ? { OR: [{ reference: { contains: q, mode: "insensitive" } }] } : {}) },
           include: { invoice: { include: { client: true } } },
           orderBy: { paidAt: "desc" },
@@ -80,7 +85,7 @@ export async function GET(
       }
       case "expenses": {
         const category = sp.get("category");
-        const rows = await prisma.expense.findMany({
+        const rows = await db.expense.findMany({
           where: {
             ...(category ? { category: category as never } : {}),
             ...(range ? { date: range } : {}),
@@ -92,7 +97,7 @@ export async function GET(
         break;
       }
       case "products": {
-        const rows = await prisma.product.findMany({
+        const rows = await db.product.findMany({
           where: q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { description: { contains: q, mode: "insensitive" } }] } : undefined,
           orderBy: { createdAt: "desc" },
         });
@@ -100,7 +105,7 @@ export async function GET(
         break;
       }
       case "contracts": {
-        const rows = await prisma.contract.findMany({
+        const rows = await db.contract.findMany({
           where: q ? { OR: [{ client: { name: { contains: q, mode: "insensitive" } } }, { product: { name: { contains: q, mode: "insensitive" } } }] } : undefined,
           include: { client: true, product: true },
           orderBy: { createdAt: "desc" },
@@ -109,7 +114,7 @@ export async function GET(
         break;
       }
       case "deposits": {
-        const rows = await prisma.deposit.findMany({
+        const rows = await db.deposit.findMany({
           where: range ? { paidAt: range } : undefined,
           include: { contract: { include: { client: true } } },
           orderBy: { createdAt: "desc" },

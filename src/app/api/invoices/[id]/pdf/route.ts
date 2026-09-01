@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { requireCompanyFromRequest } from "@/lib/company";
 import { renderToBuffer } from "@react-pdf/renderer";
 import InvoicePDF from "@/lib/pdf/InvoicePDF";
 import React from "react";
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const [invoice, company] = await Promise.all([
-    prisma.invoice.findUnique({ where: { id }, include: { client: true } }),
-    prisma.companySettings.upsert({ where: { id: "singleton" }, update: {}, create: { id: "singleton" } }),
-  ]);
+  const auth = await requireCompanyFromRequest(req);
+  if ("response" in auth) return auth.response;
+  const { db, company } = auth.ctx;
+
+  const invoice = await db.invoice.findUnique({ where: { id }, include: { client: true } });
 
   if (!invoice) return NextResponse.json({ error: "Not found" }, { status: 404 });
 

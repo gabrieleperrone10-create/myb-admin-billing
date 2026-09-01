@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { requireCompanyFromRequest } from "@/lib/company";
 import { renderToBuffer } from "@react-pdf/renderer";
 import CreditNotePDF from "@/lib/pdf/CreditNotePDF";
 import React from "react";
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const [creditNote, company] = await Promise.all([
-    prisma.creditNote.findUnique({ where: { id } }),
-    prisma.companySettings.upsert({ where: { id: "singleton" }, update: {}, create: { id: "singleton" } }),
-  ]);
+  const auth = await requireCompanyFromRequest(req);
+  if ("response" in auth) return auth.response;
+  const { db, company } = auth.ctx;
+
+  const creditNote = await db.creditNote.findUnique({ where: { id } });
 
   if (!creditNote) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
