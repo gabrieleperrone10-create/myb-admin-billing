@@ -25,6 +25,11 @@ const SECTION_LABELS: Record<AppSection, string> = {
   KNOWLEDGE:   "Knowledge Base",
   USERS:       "Utenti & Ruoli",
   OBJECTIVES:  "Obiettivi",
+  CONTACTS:      "Contatti",
+  PIPELINES:     "Pipeline & Opportunità",
+  CONVERSATIONS: "Conversazioni",
+  FORMS:         "Form",
+  CALENDARS:     "Calendari",
 };
 
 const ALL_SECTIONS = Object.keys(SECTION_LABELS) as AppSection[];

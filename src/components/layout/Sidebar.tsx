@@ -9,6 +9,7 @@ import {
   Wallet, FileCheck, Settings, Search, Receipt, FileMinus,
   BookOpen, Zap, GraduationCap, CalendarDays, UsersRound, ScrollText,
   Shield, UserCog, User, ChevronDown, Trophy,
+  Contact, KanbanSquare, MessagesSquare, ClipboardList, CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
@@ -38,7 +39,20 @@ const SECTION_MAP: Record<string, AppSection> = {
   "/settings":        "SETTINGS",
   "/settings/users":  "USERS",
   "/settings/roles":  "USERS",
+  "/contacts":        "CONTACTS",
+  "/opportunities":   "PIPELINES",
+  "/conversations":   "CONVERSATIONS",
+  "/forms":           "FORMS",
+  "/calendars":       "CALENDARS",
 };
+
+const vendite = [
+  { href: "/contacts",      label: "Contatti",      icon: Contact },
+  { href: "/opportunities", label: "Opportunità",   icon: KanbanSquare },
+  { href: "/conversations", label: "Conversazioni", icon: MessagesSquare },
+  { href: "/forms",         label: "Form",          icon: ClipboardList },
+  { href: "/calendars",     label: "Calendari",     icon: CalendarClock },
+];
 
 const amministrazione = [
   { href: "/clients",   label: "Clienti",           icon: Users },
@@ -123,6 +137,7 @@ export default function Sidebar({
     return allowed.has(section);
   }
 
+  const visibleVen = vendite.filter(i => isVisible(i.href));
   const visibleAmm = amministrazione.filter(i => isVisible(i.href));
   const visibleOp  = operazioni.filter(i => isVisible(i.href));
   const visibleOrg = organizzazione.filter(i => isVisible(i.href));
@@ -172,6 +187,9 @@ export default function Sidebar({
           <NavItem href="/dashboard" label="Dashboard" icon={LayoutDashboard} pathname={pathname} accentColor="var(--fg)" slug={slug} />
         </div>
 
+        {visibleVen.length > 0 && (
+          <NavSection title="Vendite" sectionKey="ven" items={visibleVen} pathname={pathname} accentColor="#f97316" collapsed={!!collapsed["ven"]} onToggle={() => toggle("ven")} slug={slug} />
+        )}
         {visibleAmm.length > 0 && (
           <NavSection title="Amministrazione" sectionKey="amm" items={visibleAmm} pathname={pathname} accentColor="var(--info)" collapsed={!!collapsed["amm"]} onToggle={() => toggle("amm")} slug={slug} />
         )}

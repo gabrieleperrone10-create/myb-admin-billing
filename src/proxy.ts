@@ -12,6 +12,14 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/cron/(.*)",
+  // CRM: endpoint pubblici (form, tracking, booking) e webhook dei provider.
+  // Ognuno si autentica da se': chiave pubblica dell'azienda, firma del
+  // webhook (Resend/Svix, Meta X-Hub-Signature-256) o token di gestione.
+  "/api/public/(.*)",
+  "/api/webhooks/(.*)",
+  "/f/(.*)",
+  "/book/(.*)",
+  "/embed/(.*)",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

@@ -45,6 +45,11 @@ const TENANT_MODELS = new Set([
   "Course", "Module", "Lesson", "LessonAttachment", "LessonProgress", "Event",
   "EventRsvp", "Objective", "KeyResult", "CheckIn", "AppRole", "AppRolePermission",
   "AppUserRole",
+  // CRM
+  "Contact", "CustomFieldDef", "CrmTag", "ContactTag", "SavedView", "Note", "Activity",
+  "Message", "Pipeline", "PipelineStage", "Opportunity", "OpportunityStageChange", "Form",
+  "FormSubmission", "PageView", "Calendar", "Availability", "Appointment",
+  "UserCalendarConnection", "ReminderRule", "NotificationLog",
 ]);
 
 /** Operazioni il cui `where` va filtrato per azienda. */

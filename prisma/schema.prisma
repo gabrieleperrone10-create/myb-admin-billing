@@ -138,6 +138,11 @@ model Company {
   defaultCurrency  String  @default("EUR")
   timezone         String  @default("Europe/Rome")
 
+  // — CRM —
+  // Chiave pubblica usata dallo script di tracciamento (t.js) e dagli embed dei
+  // form: identifica l'azienda senza esporre id interni. Non e' un segreto.
+  trackingKey String? @unique
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -176,6 +181,28 @@ model Company {
   appRoles           AppRole[]
   appRolePermissions AppRolePermission[]
   appUserRoles       AppUserRole[]
+
+  contacts                Contact[]
+  customFieldDefs         CustomFieldDef[]
+  crmTags                 CrmTag[]
+  contactTags             ContactTag[]
+  savedViews              SavedView[]
+  notes                   Note[]
+  activities              Activity[]
+  messages                Message[]
+  pipelines               Pipeline[]
+  pipelineStages          PipelineStage[]
+  opportunities           Opportunity[]
+  opportunityStageChanges OpportunityStageChange[]
+  forms                   Form[]
+  formSubmissions         FormSubmission[]
+  pageViews               PageView[]
+  calendars               Calendar[]
+  availabilities          Availability[]
+  appointments            Appointment[]
+  calendarConnections     UserCalendarConnection[]
+  reminderRules           ReminderRule[]
+  notificationLogs        NotificationLog[]
 }
 
 model CompanyMember {
@@ -195,6 +222,7 @@ enum IntegrationProvider {
   STRIPE
   PAYPAL
   RESEND
+  WHATSAPP
 }
 
 /// I segreti NON stanno su Company: quella riga viene passata come prop ai Server
@@ -253,6 +281,11 @@ model Client {
   invoices    Invoice[]
   creditNotes CreditNote[]
 
+  // Contatto CRM collegato (1:1, opzionale). Client resta l'anagrafica di
+  // fatturazione; il CRM lavora su Contact.
+  contactId String?  @unique
+  contact   Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
   companyId    String
   ownerCompany Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -272,7 +305,8 @@ model Product {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  contracts Contract[]
+  contracts     Contract[]
+  opportunities Opportunity[]
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -298,10 +332,11 @@ model Contract {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  client   Client    @relation(fields: [clientId], references: [id])
-  product  Product   @relation(fields: [productId], references: [id])
-  invoices Invoice[]
-  deposit  Deposit?
+  client        Client        @relation(fields: [clientId], references: [id])
+  product       Product       @relation(fields: [productId], references: [id])
+  invoices      Invoice[]
+  deposit       Deposit?
+  opportunities Opportunity[]
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -895,6 +930,11 @@ enum AppSection {
   KNOWLEDGE
   USERS
   OBJECTIVES
+  CONTACTS
+  PIPELINES
+  CONVERSATIONS
+  FORMS
+  CALENDARS
 }
 
 enum PermissionLevel {
@@ -953,4 +993,627 @@ model AppUserRole {
   @@unique([companyId, clerkUserId, roleId])
   @@index([companyId])
   @@index([companyId, clerkUserId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CRM
+//
+// Contact e' il record principale del CRM (lead e clienti). Client resta
+// l'anagrafica di fatturazione e punta a un Contact via Client.contactId.
+// Come per il resto dello schema, i vincoli di appartenenza alla stessa azienda
+// (FK composite su id+companyId) e l'anti-sovrapposizione degli appuntamenti
+// vivono solo nelle migration SQL: mai `prisma db push`.
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum ContactLifecycle {
+  LEAD
+  CUSTOMER
+  ARCHIVED
+}
+
+enum CustomFieldEntity {
+  CONTACT
+  OPPORTUNITY
+}
+
+enum CustomFieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  DATE
+  SELECT
+  MULTISELECT
+  CHECKBOX
+  URL
+  EMAIL
+  PHONE
+}
+
+enum ActivityType {
+  CONTACT_CREATED
+  CONTACT_UPDATED
+  LIFECYCLE_CHANGED
+  TAG_ADDED
+  TAG_REMOVED
+  NOTE_ADDED
+  PAGE_VIEW
+  FORM_SUBMITTED
+  EMAIL_SENT
+  EMAIL_RECEIVED
+  EMAIL_OPENED
+  EMAIL_CLICKED
+  EMAIL_BOUNCED
+  WHATSAPP_SENT
+  WHATSAPP_RECEIVED
+  APPOINTMENT_BOOKED
+  APPOINTMENT_RESCHEDULED
+  APPOINTMENT_CANCELLED
+  APPOINTMENT_COMPLETED
+  APPOINTMENT_NO_SHOW
+  OPPORTUNITY_CREATED
+  OPPORTUNITY_STAGE_CHANGED
+  OPPORTUNITY_WON
+  OPPORTUNITY_LOST
+  CLIENT_LINKED
+}
+
+enum MessageChannel {
+  EMAIL
+  WHATSAPP
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  RECEIVED
+}
+
+enum StageKind {
+  OPEN
+  WON
+  LOST
+}
+
+enum OpportunityStatus {
+  OPEN
+  WON
+  LOST
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum AppointmentLocation {
+  VIDEO
+  PHONE
+  IN_PERSON
+  CUSTOM
+}
+
+enum NotificationChannel {
+  EMAIL
+  WHATSAPP
+}
+
+enum NotificationKind {
+  CONFIRMATION
+  REMINDER
+  CANCELLATION
+  RESCHEDULE
+}
+
+model Contact {
+  id          String           @id @default(cuid())
+  firstName   String?
+  lastName    String?
+  email       String? // minuscolo, trim
+  phone       String? // E.164 (+39...), vedi lib/crm/contacts.ts normalizePhone
+  whatsapp    String? // E.164; se null si usa phone
+  companyName String?
+  jobTitle    String?
+  lifecycle   ContactLifecycle @default(LEAD)
+  source      String? // "form:<id>", "booking", "import", "manual", "whatsapp", "email"
+  ownerUserId String? // clerkUserId del responsabile
+
+  /// Prima attribuzione: { utm_source, utm_medium, utm_campaign, utm_content, utm_term, fbclid, gclid, referrer, landingUrl, at }
+  attribution  Json?
+  /// Valori dei campi personalizzati, per `CustomFieldDef.key`
+  customFields Json  @default("{}")
+
+  emailOptOut    Boolean @default(false)
+  whatsappOptOut Boolean @default(false)
+
+  /// Token per il Reply-To delle email (c-<replyToken>@INBOUND_EMAIL_DOMAIN): le risposte tornano al contatto giusto
+  replyToken String @unique @default(cuid())
+
+  lastActivityAt DateTime?
+  lastMessageAt  DateTime?
+  unreadCount    Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  client          Client?
+  tags            ContactTag[]
+  notes           Note[]
+  activities      Activity[]
+  messages        Message[]
+  opportunities   Opportunity[]
+  formSubmissions FormSubmission[]
+  pageViews       PageView[]
+  appointments    Appointment[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, email])
+  @@unique([companyId, phone])
+  @@index([companyId])
+  @@index([companyId, lifecycle])
+  @@index([companyId, createdAt])
+  @@index([companyId, lastActivityAt])
+  @@index([companyId, lastMessageAt])
+  @@index([companyId, ownerUserId])
+}
+
+model CustomFieldDef {
+  id        String            @id @default(cuid())
+  entity    CustomFieldEntity @default(CONTACT)
+  key       String // slug stabile, chiave in customFields
+  label     String
+  type      CustomFieldType
+  /// Per SELECT/MULTISELECT: string[]
+  options   Json?
+  required  Boolean           @default(false)
+  order     Int               @default(0)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, entity, key])
+  @@index([companyId, entity, order])
+}
+
+model CrmTag {
+  id        String   @id @default(cuid())
+  name      String
+  color     String   @default("#4f7deb")
+  createdAt DateTime @default(now())
+
+  contacts ContactTag[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model ContactTag {
+  id        String   @id @default(cuid())
+  contactId String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     CrmTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, tagId])
+  @@index([companyId])
+  @@index([tagId])
+}
+
+model SavedView {
+  id          String            @id @default(cuid())
+  clerkUserId String
+  entity      CustomFieldEntity @default(CONTACT)
+  name        String
+  /// Filtri serializzati (vedi lib/crm/types.ts ContactFilters)
+  filters     Json              @default("{}")
+  columns     Json              @default("[]")
+  sort        Json?
+  isShared    Boolean           @default(false)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, clerkUserId])
+}
+
+model Note {
+  id            String   @id @default(cuid())
+  contactId     String
+  opportunityId String?
+  authorUserId  String?
+  body          String // HTML (Tiptap)
+  pinned        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  contact     Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([contactId, createdAt])
+}
+
+/// Cronologia unica del contatto. Scritta SOLO tramite lib/crm/activity.ts logActivity().
+model Activity {
+  id            String       @id @default(cuid())
+  contactId     String
+  opportunityId String?
+  type          ActivityType
+  /// Payload tipizzato per `type`, vedi lib/crm/types.ts ActivityData
+  data          Json         @default("{}")
+  actorUserId   String? // null = sistema/contatto
+  occurredAt    DateTime     @default(now())
+
+  contact     Contact      @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([contactId, occurredAt(sort: Desc)])
+  @@index([companyId, type, occurredAt])
+}
+
+model Message {
+  id                String           @id @default(cuid())
+  contactId         String
+  channel           MessageChannel
+  direction         MessageDirection
+  status            MessageStatus    @default(QUEUED)
+  subject           String?
+  bodyText          String?
+  bodyHtml          String?
+  fromAddress       String? // email o numero E.164
+  toAddress         String?
+  /// id Resend (email) o wamid (WhatsApp)
+  providerMessageId String?          @unique
+  inReplyTo         String?
+  sentByUserId      String?
+  attachments       Json?
+  error             String?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  openedAt          DateTime?
+  clickedAt         DateTime?
+  createdAt         DateTime         @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([contactId, createdAt])
+  @@index([companyId, createdAt])
+}
+
+model Pipeline {
+  id        String   @id @default(cuid())
+  name      String
+  order     Int      @default(0)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stages        PipelineStage[]
+  opportunities Opportunity[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+model PipelineStage {
+  id          String    @id @default(cuid())
+  pipelineId  String
+  name        String
+  order       Int       @default(0)
+  kind        StageKind @default(OPEN)
+  probability Int? // 0-100
+  color       String    @default("#94a3b8")
+  createdAt   DateTime  @default(now())
+
+  pipeline      Pipeline                 @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  opportunities Opportunity[]
+  changesFrom   OpportunityStageChange[] @relation("StageChangeFrom")
+  changesTo     OpportunityStageChange[] @relation("StageChangeTo")
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([pipelineId, order])
+}
+
+model Opportunity {
+  id                String            @id @default(cuid())
+  name              String
+  contactId         String
+  pipelineId        String
+  stageId           String
+  status            OpportunityStatus @default(OPEN)
+  value             Float             @default(0)
+  currency          String            @default("EUR")
+  ownerUserId       String?
+  productId         String?
+  contractId        String?
+  source            String?
+  lostReason        String?
+  expectedCloseDate DateTime?
+  /// Ordinamento dentro la colonna del kanban (frazionario: si inserisce fra due valori)
+  position          Float             @default(0)
+  customFields      Json              @default("{}")
+  stageEnteredAt    DateTime          @default(now())
+  closedAt          DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  contact      Contact                  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  pipeline     Pipeline                 @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  stage        PipelineStage            @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  product      Product?                 @relation(fields: [productId], references: [id], onDelete: SetNull)
+  contract     Contract?                @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  stageChanges OpportunityStageChange[]
+  notes        Note[]
+  activities   Activity[]
+  appointments Appointment[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([companyId, pipelineId, stageId, position])
+  @@index([contactId])
+  @@index([companyId, status])
+}
+
+model OpportunityStageChange {
+  id              String   @id @default(cuid())
+  opportunityId   String
+  fromStageId     String?
+  toStageId       String
+  changedByUserId String?
+  changedAt       DateTime @default(now())
+
+  opportunity Opportunity    @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  fromStage   PipelineStage? @relation("StageChangeFrom", fields: [fromStageId], references: [id], onDelete: SetNull)
+  toStage     PipelineStage  @relation("StageChangeTo", fields: [toStageId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([opportunityId, changedAt])
+  @@index([companyId, toStageId, changedAt])
+}
+
+model Form {
+  id        String   @id @default(cuid())
+  name      String
+  /// FormField[] (vedi lib/crm/types.ts)
+  fields    Json     @default("[]")
+  /// FormSettings (vedi lib/crm/types.ts)
+  settings  Json     @default("{}")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submissions FormSubmission[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+}
+
+model FormSubmission {
+  id          String   @id @default(cuid())
+  formId      String
+  contactId   String?
+  data        Json
+  attribution Json?
+  pageUrl     String?
+  visitorId   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  form    Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([formId, createdAt])
+  @@index([contactId, createdAt])
+}
+
+/// Visite registrate da t.js. contactId si valorizza quando il visitatore si identifica (form, booking).
+model PageView {
+  id         String   @id @default(cuid())
+  visitorId  String
+  contactId  String?
+  url        String
+  path       String?
+  title      String?
+  referrer   String?
+  utm        Json?
+  occurredAt DateTime @default(now())
+
+  contact Contact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, visitorId])
+  @@index([companyId, occurredAt])
+  @@index([contactId, occurredAt])
+}
+
+model Calendar {
+  id                  String              @id @default(cuid())
+  name                String
+  slug                String // URL pubblico: /book/<companySlug>/<slug>
+  description         String?
+  hostUserId          String // clerkUserId
+  durationMinutes     Int                 @default(30)
+  slotIntervalMinutes Int                 @default(30)
+  bufferMinutes       Int                 @default(0)
+  minAdvanceHours     Int                 @default(2)
+  maxAdvanceDays      Int                 @default(60)
+  locationType        AppointmentLocation @default(VIDEO)
+  locationValue       String?
+  color               String              @default("#4f7deb")
+  timezone            String              @default("Europe/Rome")
+  /// Domande extra in prenotazione: FormField[]; e { pipelineId, stageId, tagIds } per creare opportunita'
+  settings            Json                @default("{}")
+  active              Boolean             @default(true)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  availability Availability[]
+  appointments Appointment[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, slug])
+  @@index([companyId])
+}
+
+model Availability {
+  id         String @id @default(cuid())
+  calendarId String
+  dayOfWeek  Int // 0 = domenica ... 6 = sabato
+  startTime  String // "HH:mm"
+  endTime    String // "HH:mm"
+
+  calendar Calendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([calendarId, dayOfWeek])
+}
+
+model Appointment {
+  id               String            @id @default(cuid())
+  calendarId       String
+  contactId        String
+  opportunityId    String?
+  hostUserId       String
+  title            String
+  startTime        DateTime
+  endTime          DateTime
+  status           AppointmentStatus @default(SCHEDULED)
+  guestName        String?
+  guestEmail       String?
+  guestPhone       String?
+  notes            String?
+  answers          Json?
+  googleEventId    String?
+  videoLink        String?
+  /// Token per annullare/spostare dal link nell'email (mai esposto in lista)
+  manageToken      String            @unique @default(cuid())
+  rescheduledCount Int               @default(0)
+  cancelledAt      DateTime?
+  cancelReason     String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  calendar    Calendar          @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+  contact     Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  opportunity Opportunity?      @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  logs        NotificationLog[]
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([companyId, startTime])
+  @@index([hostUserId, startTime])
+  @@index([contactId, startTime])
+}
+
+model UserCalendarConnection {
+  id           String    @id @default(cuid())
+  clerkUserId  String
+  provider     String    @default("GOOGLE")
+  email        String?
+  /// refresh token cifrato (lib/crypto.ts)
+  secretCipher Bytes
+  secretIv     Bytes
+  secretTag    Bytes
+  connectedAt  DateTime  @default(now())
+  lastErrorAt  DateTime?
+  lastError    String?
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, clerkUserId, provider])
+  @@index([companyId])
+}
+
+model ReminderRule {
+  id            String              @id @default(cuid())
+  offsetMinutes Int // minuti prima dell'appuntamento
+  channel       NotificationChannel @default(EMAIL)
+  active        Boolean             @default(true)
+  createdAt     DateTime            @default(now())
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, offsetMinutes, channel])
+  @@index([companyId])
+}
+
+/// Idempotenza degli invii: una riga per (appuntamento, tipo, canale, offset).
+model NotificationLog {
+  id            String              @id @default(cuid())
+  appointmentId String
+  kind          NotificationKind
+  channel       NotificationChannel
+  offsetMinutes Int                 @default(0)
+  ok            Boolean
+  error         String?
+  sentAt        DateTime            @default(now())
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([appointmentId, kind, channel, offsetMinutes])
+  @@index([companyId])
 }

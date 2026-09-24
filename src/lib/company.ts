@@ -22,6 +22,8 @@ import type { Company } from "@prisma/client";
 export const RESERVED_SLUGS = new Set([
   "api", "sign-in", "sign-up", "select-company", "_next", "favicon.ico",
   "manifest.json", "icons", "robots.txt", "sitemap.xml", "opengraph-image",
+  // rotte pubbliche del CRM (form ospitati, booking, script di tracciamento)
+  "f", "book", "t.js", "embed",
 ]);
 
 export const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{1,48}$/;

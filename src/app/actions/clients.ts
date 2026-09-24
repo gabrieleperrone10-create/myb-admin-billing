@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { companyAction } from "@/lib/companyAction";
+import { upsertContact, setLifecycle } from "@/lib/crm/contacts";
+import { logActivity } from "@/lib/crm/activity";
 
 /**
  * File di riferimento per la conversione delle server action.
@@ -31,9 +33,29 @@ const clientFields = (formData: FormData) => ({
 });
 
 export const createClient = companyAction(async (ctx, formData: FormData) => {
-  await ctx.db.client.create({
-    data: { companyId: ctx.companyId, ...clientFields(formData) },
+  const fields = clientFields(formData);
+  const client = await ctx.db.client.create({
+    data: { companyId: ctx.companyId, ...fields },
   });
+
+  // Ogni cliente di fatturazione ha il suo contatto CRM (lista Lead/Clienti).
+  // Se esiste gia' un lead con la stessa email/telefono lo si collega invece
+  // di duplicarlo. Un errore qui non deve impedire la creazione del cliente.
+  try {
+    const [firstName, ...rest] = fields.name.trim().split(/\s+/);
+    const { contact } = await upsertContact(ctx.db, ctx.companyId, {
+      email: fields.email, phone: fields.phone, whatsapp: fields.whatsapp,
+      firstName, lastName: rest.join(" ") || null, companyName: fields.company, source: "billing",
+    }, { actorUserId: ctx.userId });
+    const linked = await ctx.db.client.findFirst({ where: { contactId: contact.id }, select: { id: true } });
+    if (!linked) {
+      await ctx.db.client.update({ where: { id: client.id }, data: { contactId: contact.id } });
+      await logActivity(ctx.db, ctx.companyId, { contactId: contact.id, type: "CLIENT_LINKED", data: { clientId: client.id }, actorUserId: ctx.userId });
+    }
+    await setLifecycle(ctx.db, ctx.companyId, contact.id, "CUSTOMER", ctx.userId);
+  } catch (e) {
+    console.error("[clients] collegamento contatto CRM fallito", e);
+  }
 
   revalidatePath(`/${ctx.slug}/clients`);
   redirect(`/${ctx.slug}/clients`);
