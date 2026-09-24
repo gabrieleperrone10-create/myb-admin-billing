@@ -1,18 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { X, ExternalLink } from "lucide-react";
+import { X, ExternalLink, Plus } from "lucide-react";
 import { useCompanySlug } from "@/lib/useCompany";
 import { formatCurrency } from "@/lib/utils";
 import { createOpportunityAction, updateOpportunityAction } from "@/app/actions/opportunities";
+import { listOpportunityTasksAction } from "@/app/actions/tasks";
+import { TaskFormDialog } from "@/components/crm/tasks/TaskFormDialog";
+import { TaskListItem } from "@/components/crm/tasks/TaskListItem";
+import type { TaskRow } from "@/components/crm/tasks/types";
 import { ContactPicker, type PickedContact } from "./ContactPicker";
 import type { CustomFieldDefData, MemberData, OpportunityCardData, PipelineData, ProductData } from "./types";
 
 export function OpportunityDrawer({
   open, onClose, pipelines, members, products, customFieldDefs,
   opportunity, defaultPipelineId, defaultStageId, defaultContact, onSaved,
+  currentUserId = "", companyTimezone = "Europe/Rome",
 }: {
   open: boolean;
   onClose: () => void;
@@ -25,6 +30,9 @@ export function OpportunityDrawer({
   defaultStageId?: string;
   defaultContact?: PickedContact | null;
   onSaved?: (id: string) => void;
+  /** Facoltativi (agente Task, sezione "Task" del drawer): chi non li passa mantiene il comportamento precedente. */
+  currentUserId?: string;
+  companyTimezone?: string;
 }) {
   const slug = useCompanySlug();
   const router = useRouter();
@@ -54,11 +62,26 @@ export function OpportunityDrawer({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Sezione "Task" (agente Task): elenco + creazione, solo quando l'opportunità esiste già.
+  const [tasks, setTasks] = useState<TaskRow[]>([]);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<TaskRow | null>(null);
+
+  useEffect(() => {
+    if (!open || !opportunity) return;
+    void listOpportunityTasksAction(slug, opportunity.id).then(setTasks);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, opportunity?.id]);
+
   const pipeline = pipelines.find(p => p.id === pipelineId);
   const stages = pipeline?.stages ?? [];
   const currentStageId = stages.some(s => s.id === stageId) ? stageId : (stages[0]?.id ?? "");
 
   if (!open) return null;
+
+  function refreshTasks() {
+    if (opportunity) void listOpportunityTasksAction(slug, opportunity.id).then(setTasks);
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -236,6 +259,31 @@ export function OpportunityDrawer({
             />
           </div>
 
+          {isEdit && opportunity && (
+            <div className="pt-1" style={{ borderTop: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between pt-3 mb-2">
+                <p className="font-mono text-[10px] uppercase tracking-table-head" style={{ color: "var(--fg-3)" }}>Task</p>
+                <button
+                  type="button"
+                  onClick={() => setTaskDialogOpen(true)}
+                  className="flex items-center gap-1 text-[11px] font-medium"
+                  style={{ color: "var(--info)", minHeight: "unset" }}
+                >
+                  <Plus className="w-3 h-3" /> Nuovo task
+                </button>
+              </div>
+              {tasks.length === 0 ? (
+                <p className="text-[12px]" style={{ color: "var(--fg-3)" }}>Nessun task collegato</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {tasks.map(t => (
+                    <TaskListItem key={t.id} task={t} members={members.map(m => ({ userId: m.userId, name: m.name }))} onEdit={setEditingTask} showContact={false} onChanged={refreshTasks} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {error && (
             <div className="px-3 py-2 rounded-[var(--r-md)] text-[12px]" style={{ backgroundColor: "var(--danger-soft)", color: "var(--danger)" }}>{error}</div>
           )}
@@ -255,6 +303,32 @@ export function OpportunityDrawer({
           </button>
         </div>
       </div>
+
+      {isEdit && opportunity && (
+        <>
+          <TaskFormDialog
+            key={`create-${opportunity.id}`}
+            open={taskDialogOpen}
+            onClose={() => setTaskDialogOpen(false)}
+            members={members.map(m => ({ userId: m.userId, name: m.name }))}
+            currentUserId={currentUserId}
+            companyTimezone={companyTimezone}
+            defaultContactId={opportunity.contact.id}
+            defaultOpportunityId={opportunity.id}
+            onSaved={() => { setTaskDialogOpen(false); refreshTasks(); }}
+          />
+          <TaskFormDialog
+            key={editingTask?.id ?? "edit"}
+            open={!!editingTask}
+            onClose={() => setEditingTask(null)}
+            members={members.map(m => ({ userId: m.userId, name: m.name }))}
+            currentUserId={currentUserId}
+            companyTimezone={companyTimezone}
+            task={editingTask}
+            onSaved={() => { setEditingTask(null); refreshTasks(); }}
+          />
+        </>
+      )}
     </>
   );
 }

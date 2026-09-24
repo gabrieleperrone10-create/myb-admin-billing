@@ -1,5 +1,7 @@
 import { CalendarClock } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { TaskTypeIcon } from "@/components/crm/tasks/TaskIcons";
+import type { NextTaskSummary } from "@/components/crm/tasks/types";
 import type { MemberData, OpportunityCardData } from "./types";
 
 function daysInStage(stageEnteredAt: string): number {
@@ -39,11 +41,13 @@ export function OwnerAvatar({ userId, members, size = 22 }: { userId: string | n
 }
 
 export function OpportunityCard({
-  opp, members, onClick,
+  opp, members, onClick, nextTask,
 }: {
   opp: OpportunityCardData;
   members: MemberData[];
   onClick: () => void;
+  /** Prossimo task aperto collegato (agente Task): icona + scadenza, rossa se in ritardo. */
+  nextTask?: NextTaskSummary | null;
 }) {
   const overdue = opp.status === "OPEN" && !!opp.expectedCloseDate && new Date(opp.expectedCloseDate) < new Date(new Date().toDateString());
   const days = daysInStage(opp.stageEnteredAt);
@@ -77,6 +81,17 @@ export function OpportunityCard({
           </span>
         )}
       </div>
+
+      {nextTask && (
+        <div
+          className="flex items-center gap-1.5 text-[11px] mt-1.5 pt-1.5"
+          style={{ borderTop: "1px solid var(--border)", color: nextTask.overdue ? "var(--danger)" : "var(--fg-3)" }}
+        >
+          <TaskTypeIcon type={nextTask.type} className="w-3 h-3 shrink-0" />
+          <span className="truncate">{nextTask.title}</span>
+          {nextTask.dueAt && <span className="shrink-0 ml-auto">{formatDate(nextTask.dueAt)}</span>}
+        </div>
+      )}
     </div>
   );
 }

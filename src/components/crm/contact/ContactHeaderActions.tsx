@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { MoreVertical, ExternalLink, Trash2, Check } from "lucide-react";
+import { MoreVertical, ExternalLink, Trash2, Check, ListTodo } from "lucide-react";
 import type { ContactLifecycle } from "@prisma/client";
 import { changeContactLifecycle, updateContactOwner, createBillingClientForContact, deleteContact } from "@/app/actions/contactDetail";
 import { companyPath } from "@/lib/paths";
+import { TaskFormDialog } from "@/components/crm/tasks/TaskFormDialog";
 
 const LIFECYCLE_OPTIONS: { value: ContactLifecycle; label: string }[] = [
   { value: "LEAD", label: "Lead" },
@@ -36,6 +37,7 @@ export function ContactHeaderActions({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -152,6 +154,17 @@ export function ContactHeaderActions({
           <div style={{ borderTop: "1px solid var(--border)" }}>
             <button
               type="button"
+              onClick={() => { setOpen(false); setTaskDialogOpen(true); }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-subtle"
+              style={{ color: "var(--fg)" }}
+            >
+              <ListTodo className="w-3.5 h-3.5" /> Nuovo task / follow-up
+            </button>
+          </div>
+
+          <div style={{ borderTop: "1px solid var(--border)" }}>
+            <button
+              type="button"
               disabled={pending}
               onClick={doDelete}
               className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-subtle"
@@ -168,6 +181,14 @@ export function ContactHeaderActions({
           )}
         </div>
       )}
+
+      <TaskFormDialog
+        open={taskDialogOpen}
+        onClose={() => setTaskDialogOpen(false)}
+        members={members.map(m => ({ userId: m.userId, name: m.name }))}
+        defaultContactId={contactId}
+        onSaved={() => { setTaskDialogOpen(false); router.refresh(); }}
+      />
     </div>
   );
 }
