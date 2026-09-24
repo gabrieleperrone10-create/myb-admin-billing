@@ -14,10 +14,11 @@ import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
  * chiave e' un errore, non un valore.
  */
 
+/** Buffer: e' il tipo che Prisma 5 usa per le colonne Bytes. */
 export type EncryptedSecret = {
-  secretCipher: Uint8Array<ArrayBuffer>;
-  secretIv: Uint8Array<ArrayBuffer>;
-  secretTag: Uint8Array<ArrayBuffer>;
+  secretCipher: Buffer;
+  secretIv: Buffer;
+  secretTag: Buffer;
 };
 
 function key(): Buffer {
@@ -37,9 +38,9 @@ export function encryptSecret(plain: string): EncryptedSecret {
   const cipher = createCipheriv("aes-256-gcm", key(), iv);
   const enc = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
   return {
-    secretCipher: new Uint8Array(enc),
-    secretIv: new Uint8Array(iv),
-    secretTag: new Uint8Array(cipher.getAuthTag()),
+    secretCipher: enc,
+    secretIv: iv,
+    secretTag: cipher.getAuthTag(),
   };
 }
 
