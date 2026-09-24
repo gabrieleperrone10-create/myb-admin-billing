@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { getCompanySettings } from "@/app/actions/settings";
 import SettingsForm from "./SettingsForm";
-import { UserCog, Shield, PartyPopper, Zap, KanbanSquare, SlidersHorizontal, Tags, MessageCircle } from "lucide-react";
+import { UserCog, Shield, PartyPopper, Zap, KanbanSquare, SlidersHorizontal, Tags, MessageCircle, AtSign } from "lucide-react";
 
 export default async function SettingsPage({
   params,
@@ -116,6 +116,7 @@ export default async function SettingsPage({
           { href: "/settings/crm/fields", label: "Campi personalizzati", desc: "Dati extra su contatti e opportunità", Icon: SlidersHorizontal, color: "#10b981" },
           { href: "/settings/crm/tags", label: "Etichette", desc: "Etichette colorate dei contatti", Icon: Tags, color: "#4f7deb" },
           { href: "/settings/integrations/whatsapp", label: "WhatsApp", desc: "Collega il numero WhatsApp Business", Icon: MessageCircle, color: "#22c55e" },
+          { href: "/settings/email", label: "Dominio email", desc: "Invia dal tuo dominio e ricevi le risposte nel CRM", Icon: AtSign, color: "#8b5cf6" },
         ].map(({ href, label, desc, Icon, color }) => (
           <Link
             key={href}

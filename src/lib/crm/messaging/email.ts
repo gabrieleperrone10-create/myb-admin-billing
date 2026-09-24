@@ -2,6 +2,7 @@ import "server-only";
 import { Resend } from "resend";
 import type { CompanyDb } from "@/lib/db";
 import { companyMailIdentity } from "@/lib/cron";
+import { inboundDomainFor, platformInboundDomain } from "@/lib/email/identity";
 import { logActivity } from "@/lib/crm/activity";
 import { htmlToText, replyAddressFor } from "./signatures";
 
@@ -30,9 +31,9 @@ export function getResend(): Resend {
   return client;
 }
 
+/** Dominio di ricezione condiviso della piattaforma (riserva). Per azienda: inboundDomainFor(). */
 export function inboundEmailDomain(): string | null {
-  const d = process.env.INBOUND_EMAIL_DOMAIN?.trim().toLowerCase();
-  return d ? d : null;
+  return platformInboundDomain();
 }
 
 export type SendResult = { ok: true; messageId: string } | { ok: false; error: string; messageId?: string };
@@ -59,7 +60,8 @@ export async function sendContactEmail(
 
   const { fromName, fromEmail, replyTo: companyReplyTo } = companyMailIdentity(company);
   if (!fromEmail) return { ok: false, error: "Mittente email dell'azienda non configurato" };
-  const domain = inboundEmailDomain();
+  // Sottodominio di ricezione dell'azienda se verificato, altrimenti quello condiviso.
+  const domain = inboundDomainFor(company);
   const replyTo = domain ? replyAddressFor(contact.replyToken, domain) : companyReplyTo || undefined;
   const text = params.text ?? htmlToText(params.html);
 

@@ -2,6 +2,7 @@ import "server-only";
 import type { Automation, Company } from "@prisma/client";
 import { basePrisma, companyDb, type CompanyDb } from "@/lib/db";
 import { companyDisplayName } from "@/lib/company";
+import { senderFor } from "@/lib/email/identity";
 
 /**
  * Autorizzazione dei cron di Vercel.
@@ -78,11 +79,11 @@ export async function forEachCompany<T>(
   return results;
 }
 
-/** Mittente e destinatari, per azienda, con fallback sulle env globali. */
+/**
+ * Mittente e destinatari, per azienda, con fallback sulle env globali.
+ * Con un dominio di invio verificato (Impostazioni > Dominio email) si invia da
+ * quel dominio: vedi lib/email/identity.ts.
+ */
 export function companyMailIdentity(company: Company) {
-  return {
-    fromName:  company.emailFromName ?? companyDisplayName(company),
-    fromEmail: company.emailFromAddress ?? process.env.EMAIL_FROM ?? "",
-    replyTo:   company.emailReplyTo ?? process.env.EMAIL_REPLY_TO ?? "",
-  };
+  return senderFor(company, companyDisplayName(company));
 }

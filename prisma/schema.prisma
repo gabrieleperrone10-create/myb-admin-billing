@@ -138,6 +138,21 @@ model Company {
   defaultCurrency  String  @default("EUR")
   timezone         String  @default("Europe/Rome")
 
+  // — dominio email dell'azienda (Resend, gestito dalla piattaforma) —
+  // emailDomain: dominio di INVIO (es. axismundi.it: record DKIM/SPF su
+  // sottodomini dedicati, la posta aziendale non viene toccata).
+  // inboundDomain: sottodominio di RICEZIONE delle risposte al CRM
+  // (es. reply.axismundi.it, record MX solo li'). Unici globalmente: il webhook
+  // instrada le risposte anche in base al dominio.
+  // Finche' lo stato non e' "verified" si usa il mittente storico
+  // (emailFromAddress / EMAIL_FROM) e il dominio di ricezione della piattaforma.
+  emailDomain         String? @unique
+  emailDomainStatus   String?
+  inboundDomain       String? @unique
+  inboundDomainStatus String?
+  /// { sendingId, receivingId, managedSending, managedReceiving, records: [...], lastCheckedAt, lastError }
+  emailDomainMeta     Json?
+
   // — CRM —
   // Chiave pubblica usata dallo script di tracciamento (t.js) e dagli embed dei
   // form: identifica l'azienda senza esporre id interni. Non e' un segreto.

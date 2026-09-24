@@ -2,7 +2,8 @@ import "server-only";
 import { Prisma, type Message } from "@prisma/client";
 import { basePrisma, companyDb } from "@/lib/db";
 import { logActivity } from "@/lib/crm/activity";
-import { getResend, inboundEmailDomain } from "./email";
+import { getResend } from "./email";
+import { acceptedInboundDomains } from "@/lib/email/identity";
 import { extractEmailAddress, htmlToText, parseReplyToken, stripQuotedReply } from "./signatures";
 
 /**
@@ -159,15 +160,23 @@ async function handleStatus(type: string, data: EmailEventData, createdAt?: stri
 }
 
 async function resolveInboundContact(data: EmailEventData): Promise<{ id: string; companyId: string } | null> {
-  const domain = inboundEmailDomain();
   const recipients = [...(data.to ?? []), ...(data.cc ?? []), ...(data.bcc ?? [])];
   for (const r of recipients) {
-    const token = parseReplyToken(r, domain);
+    const token = parseReplyToken(r);
     if (!token) continue;
     // Lookup globale inevitabile: replyToken e' unique su tutte le aziende ed
     // e' proprio cio' che identifica azienda + contatto.
-    const c = await basePrisma.contact.findUnique({ where: { replyToken: token }, select: { id: true, companyId: true } });
-    if (c) return c;
+    const c = await basePrisma.contact.findUnique({
+      where: { replyToken: token },
+      select: { id: true, companyId: true, company: { select: { inboundDomain: true, inboundDomainStatus: true } } },
+    });
+    if (!c) continue;
+    // Il dominio di arrivo deve essere uno di quelli dell'azienda del contatto
+    // (il suo sottodominio verificato o quello condiviso della piattaforma):
+    // un token valido su un dominio di un'altra azienda non si accetta.
+    const host = extractEmailAddress(r)?.split("@")[1] ?? "";
+    if (!acceptedInboundDomains(c.company).includes(host)) continue;
+    return { id: c.id, companyId: c.companyId };
   }
 
   // Nessun token: si scarta. Il "From" di un'email non e' autenticato (niente
