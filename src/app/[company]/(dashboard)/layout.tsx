@@ -6,6 +6,7 @@ import { BottomNav } from "@/components/layout/BottomNav";
 import { AuthGuard } from "@/components/layout/AuthGuard";
 import { requireCompany, listMyCompanies, companyDisplayName } from "@/lib/company";
 import { getUserPermissions, canView, ALL_SECTIONS } from "@/lib/permissions";
+import { countMyDueTasks } from "@/lib/crm/tasks";
 
 /**
  * requireCompany() e' memoizzata con cache(): questa chiamata e quella dentro
@@ -34,6 +35,13 @@ export default async function DashboardLayout({
   const allowedSections = ALL_SECTIONS.filter(s => canView(perms, s));
   const companyOptions = companies.map(c => ({ slug: c.slug, name: companyDisplayName(c), logoUrl: c.logoUrl }));
 
+  // Contatori del menu Vendite. Un errore qui non deve impedire di caricare l'app.
+  const [dueTasks, unread] = await Promise.all([
+    countMyDueTasks(ctx.db, ctx.userId, ctx.company.timezone).catch(() => 0),
+    ctx.db.contact.aggregate({ _sum: { unreadCount: true } }).then(r => r._sum.unreadCount ?? 0).catch(() => 0),
+  ]);
+  const badges = { "/tasks": dueTasks, "/conversations": unread };
+
   return (
     <AuthGuard>
       <div className="flex h-screen overflow-hidden bg-bg">
@@ -42,6 +50,7 @@ export default async function DashboardLayout({
           companyName={companyDisplayName(ctx.company)}
           companyLogoUrl={ctx.company.logoUrl}
           companies={companyOptions}
+          badges={badges}
         />
 
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">

@@ -95,11 +95,14 @@ export default function Sidebar({
   companyName = "Azienda",
   companyLogoUrl,
   companies = [],
+  badges = {},
 }: {
   allowedSections?: AppSection[];
   companyName?: string;
   companyLogoUrl?: string | null;
   companies?: CompanyOption[];
+  /** Contatori per voce di menu (es. { "/tasks": 3 }), calcolati nel layout server. */
+  badges?: Record<string, number>;
 }) {
   const slug = useCompanySlug();
   const pathname = stripCompany(usePathname());
@@ -141,7 +144,7 @@ export default function Sidebar({
     return allowed.has(section);
   }
 
-  const visibleVen = vendite.filter(i => isVisible(i.href));
+  const visibleVen = vendite.filter(i => isVisible(i.href)).map(i => ({ ...i, badge: badges[i.href] }));
   const visibleAmm = amministrazione.filter(i => isVisible(i.href));
   const visibleOp  = operazioni.filter(i => isVisible(i.href));
   const visibleOrg = organizzazione.filter(i => isVisible(i.href));
@@ -286,10 +289,10 @@ export default function Sidebar({
 }
 
 function NavItem({
-  href, label, icon: Icon, pathname, accentColor, slug,
+  href, label, icon: Icon, pathname, accentColor, slug, badge,
 }: {
   href: string; label: string; icon: React.FC<{ className?: string; strokeWidth?: number }>;
-  pathname: string; accentColor: string; slug: string;
+  pathname: string; accentColor: string; slug: string; badge?: number;
 }) {
   const active = pathname === href || pathname.startsWith(href + "/");
   return (
@@ -306,7 +309,12 @@ function NavItem({
       }}
     >
       <Icon className="w-[15px] h-[15px] shrink-0" strokeWidth={1.6} />
-      {label}
+      <span className="flex-1">{label}</span>
+      {!!badge && badge > 0 && (
+        <span className="text-[10px] font-semibold px-1.5 py-px rounded-full text-white leading-[14px]" style={{ backgroundColor: "#f97316" }}>
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
     </Link>
   );
 }
@@ -316,7 +324,7 @@ function NavSection({
 }: {
   title: string;
   sectionKey: string;
-  items: { href: string; label: string; icon: React.FC<{ className?: string; strokeWidth?: number }> }[];
+  items: { href: string; label: string; icon: React.FC<{ className?: string; strokeWidth?: number }>; badge?: number }[];
   pathname: string;
   accentColor: string;
   collapsed: boolean;
@@ -342,8 +350,8 @@ function NavSection({
       </button>
       {!collapsed && (
         <div className="space-y-0.5 mt-0.5">
-          {items.map(({ href, label, icon: Icon }) => (
-            <NavItem key={href} href={href} label={label} icon={Icon} pathname={pathname} accentColor={accentColor} slug={slug} />
+          {items.map(({ href, label, icon: Icon, badge }) => (
+            <NavItem key={href} href={href} label={label} icon={Icon} pathname={pathname} accentColor={accentColor} slug={slug} badge={badge} />
           ))}
         </div>
       )}

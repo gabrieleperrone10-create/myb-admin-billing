@@ -5,6 +5,8 @@ import type { CompanyDb } from "@/lib/db";
 import type { Company } from "@prisma/client";
 import { formatCurrency } from "@/lib/utils";
 import { KpiCard } from "@/components/ui/KpiCard";
+import { getSalesSummary } from "@/lib/crm/reports";
+import { companyPath } from "@/lib/paths";
 import PeriodFilter from "./PeriodFilter";
 import TrendChart from "./TrendChart";
 import { BankBalanceCard } from "./BankBalanceCard";
@@ -273,6 +275,17 @@ export default async function DashboardPage({
   const period = sp.period ?? "month";
   const data   = await getData(db, companyId, company, period, sp.from, sp.to);
 
+  // Riepilogo vendite CRM: ultimi 30 giorni vs i 30 precedenti. Se i report
+  // falliscono la dashboard finanziaria resta comunque visibile.
+  const DAY = 86_400_000;
+  const salesTo = new Date();
+  const salesFrom = new Date(salesTo.getTime() - 30 * DAY);
+  const [sales, salesPrev] = await Promise.all([
+    getSalesSummary(db, companyId, { from: salesFrom, to: salesTo, timezone: company.timezone }).catch(() => null),
+    getSalesSummary(db, companyId, { from: new Date(salesFrom.getTime() - 30 * DAY), to: salesFrom, timezone: company.timezone }).catch(() => null),
+  ]);
+  const pctChange = (cur: number, prev: number) => (prev > 0 ? ((cur - prev) / prev) * 100 : null);
+
   const now      = new Date();
   const hour     = now.getHours();
   const greeting = hour < 12 ? "Buongiorno" : hour < 18 ? "Buon pomeriggio" : "Buonasera";
@@ -388,6 +401,42 @@ export default async function DashboardPage({
           sparklineColor={C.warn}
         />
       </div>
+
+      {/* KPI row — Vendite (CRM) */}
+      {sales && (
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-mono text-[10px] uppercase" style={{ color: "var(--fg-3)", letterSpacing: "0.14em" }}>Vendite · ultimi 30 giorni</p>
+            <a href={companyPath(slug, "/reports")} className="text-[12px] hover:underline" style={{ color: "var(--fg-2)" }}>Report completi →</a>
+          </div>
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+            <KpiCard
+              eyebrow="NUOVI LEAD"
+              value={String(sales.leads)}
+              sub={sales.cpl !== null ? `Costo per lead ${formatCurrency(sales.cpl)}` : undefined}
+              change={salesPrev ? pctChange(sales.leads, salesPrev.leads) : null}
+            />
+            <KpiCard
+              eyebrow="OPPORTUNITÀ VINTE"
+              value={String(sales.won)}
+              sub={sales.winRate !== null ? `Tasso di vittoria ${Math.round(sales.winRate)}%` : `${sales.opportunitiesCreated} create`}
+              change={salesPrev ? pctChange(sales.won, salesPrev.won) : null}
+              valueColor={sales.won > 0 ? C.ok : "var(--fg-3)"}
+            />
+            <KpiCard
+              eyebrow="VALORE VINTO"
+              value={formatCurrency(sales.wonValue)}
+              change={salesPrev ? pctChange(sales.wonValue, salesPrev.wonValue) : null}
+            />
+            <KpiCard
+              eyebrow="ROAS"
+              value={sales.roas !== null ? `${sales.roas.toFixed(2).replace(".", ",")}x` : "—"}
+              sub={sales.spend > 0 ? `Spesa ${formatCurrency(sales.spend)} · incassato ${formatCurrency(sales.collected)}` : "Inserisci la spesa ads nei report"}
+              valueColor={sales.roas === null ? "var(--fg-3)" : sales.roas >= 1 ? C.ok : C.danger}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Area chart — full width */}
       <TrendChart monthly={data.monthly12} daily={data.daily30} />

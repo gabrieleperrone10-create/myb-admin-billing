@@ -331,7 +331,8 @@ export function bucketOpenTasks(tasks: TaskRow[], tz: string, now = new Date()):
   for (const t of tasks) {
     if (!t.dueAt) { buckets.noDueDate.push(t); continue; }
     const ms = new Date(t.dueAt).getTime();
-    if (ms < startToday) buckets.overdue.push(t);
+    // Con orario: in ritardo appena l'ora e' passata. Tutto il giorno: solo dal giorno dopo.
+    if (ms < startToday || (!t.allDay && ms < now.getTime())) buckets.overdue.push(t);
     else if (ms < startTomorrow) buckets.today.push(t);
     else if (ms < startPlus8) buckets.next7.push(t);
     else buckets.later.push(t);
