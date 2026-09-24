@@ -4,7 +4,7 @@ import { ArrowLeft, ExternalLink, MessagesSquare } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { requireCompany } from "@/lib/company";
 import { companyPath } from "@/lib/paths";
-import { canView, getUserPermissions } from "@/lib/permissions";
+import { canView, getEffectivePermissions } from "@/lib/permissions";
 import { contactDisplayName } from "@/lib/crm/contacts";
 import { htmlToText } from "@/lib/crm/messaging/signatures";
 import ConversationList, { inboxHref, type InboxFilter, type InboxItem } from "@/components/crm/conversations/ConversationList";
@@ -29,7 +29,7 @@ export default async function ConversationsPage({
 }) {
   const [{ company: slug }, sp] = await Promise.all([params, searchParams]);
   const ctx = await requireCompany(slug);
-  const perms = await getUserPermissions(ctx.db, ctx.companyId, ctx.userId);
+  const perms = await getEffectivePermissions(ctx.db, ctx.companyId, ctx.userId);
 
   if (!canView(perms, "CONVERSATIONS")) {
     return (

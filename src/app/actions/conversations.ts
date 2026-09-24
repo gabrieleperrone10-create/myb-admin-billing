@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { companyAction } from "@/lib/companyAction";
 import type { CompanyContext } from "@/lib/company";
-import { canEdit, canView, getUserPermissions } from "@/lib/permissions";
+import { canEdit, canView, getEffectivePermissions } from "@/lib/permissions";
 import { sendContactEmail } from "@/lib/crm/messaging/email";
 import {
   listWhatsAppTemplates,
@@ -28,7 +28,7 @@ import { htmlToText, plainTextToHtml } from "@/lib/crm/messaging/signatures";
 type Result = { ok: true } | { ok: false; error: string };
 
 async function assertPerm(ctx: CompanyContext, level: "view" | "edit") {
-  const perms = await getUserPermissions(ctx.db, ctx.companyId, ctx.userId);
+  const perms = await getEffectivePermissions(ctx.db, ctx.companyId, ctx.userId);
   const allowed = level === "edit" ? canEdit(perms, "CONVERSATIONS") : canView(perms, "CONVERSATIONS");
   if (!allowed) throw new Error("Permessi insufficienti sulle conversazioni");
 }

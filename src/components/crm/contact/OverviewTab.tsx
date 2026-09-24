@@ -5,12 +5,6 @@ import { companyPath } from "@/lib/paths";
 import { listCompanyMembers } from "@/lib/crm/members";
 import type { CustomFieldValues } from "@/lib/crm/customFields";
 import type { Attribution } from "@/lib/crm/types";
-import {
-  updateContactTextField,
-  updateContactEmail,
-  updateContactPhoneField,
-  updateContactCustomField,
-} from "@/app/actions/contactDetail";
 import { InlineTextField } from "./fields/InlineTextField";
 import { CustomFieldEditor } from "./fields/CustomFieldEditor";
 import { TagsEditor } from "./fields/TagsEditor";
@@ -75,46 +69,46 @@ export default async function OverviewTab({ slug, contactId }: ContactTabProps) 
               <InlineTextField
                 label="Nome"
                 value={contact.firstName}
-                onSave={v => updateContactTextField(slug, contactId, "firstName", v)}
+                slug={slug} contactId={contactId} field="firstName"
               />
               <InlineTextField
                 label="Cognome"
                 value={contact.lastName}
-                onSave={v => updateContactTextField(slug, contactId, "lastName", v)}
+                slug={slug} contactId={contactId} field="lastName"
               />
             </div>
             <InlineTextField
               label="Email"
               value={contact.email}
               type="email"
-              href={v => `mailto:${v}`}
-              onSave={v => updateContactEmail(slug, contactId, v)}
+              link="mailto"
+              slug={slug} contactId={contactId} field="email"
             />
             <div className="grid grid-cols-2 gap-3">
               <InlineTextField
                 label="Telefono"
                 value={contact.phone}
                 type="tel"
-                href={v => `tel:${v}`}
-                onSave={v => updateContactPhoneField(slug, contactId, "phone", v)}
+                link="tel"
+                slug={slug} contactId={contactId} field="phone"
               />
               <InlineTextField
                 label="WhatsApp"
                 value={contact.whatsapp}
                 type="tel"
-                onSave={v => updateContactPhoneField(slug, contactId, "whatsapp", v)}
+                slug={slug} contactId={contactId} field="whatsapp"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <InlineTextField
                 label="Azienda"
                 value={contact.companyName}
-                onSave={v => updateContactTextField(slug, contactId, "companyName", v)}
+                slug={slug} contactId={contactId} field="companyName"
               />
               <InlineTextField
                 label="Ruolo"
                 value={contact.jobTitle}
-                onSave={v => updateContactTextField(slug, contactId, "jobTitle", v)}
+                slug={slug} contactId={contactId} field="jobTitle"
               />
             </div>
           </div>
@@ -134,7 +128,8 @@ export default async function OverviewTab({ slug, contactId }: ContactTabProps) 
                     required: def.required,
                   }}
                   value={customValues[def.key] ?? null}
-                  onSave={raw => updateContactCustomField(slug, contactId, def.key, raw)}
+                  slug={slug}
+                  contactId={contactId}
                 />
               ))}
             </div>

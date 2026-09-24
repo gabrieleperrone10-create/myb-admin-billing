@@ -4,7 +4,7 @@ import { it } from "date-fns/locale";
 import { requireCompany } from "@/lib/company";
 import { companyPath } from "@/lib/paths";
 import { listCompanyMembers, memberName } from "@/lib/crm/members";
-import { getUserPermissions, canEdit } from "@/lib/permissions";
+import { getEffectivePermissions, canEdit } from "@/lib/permissions";
 import { NoteComposer } from "./notes/NoteComposer";
 import { NoteCard } from "./notes/NoteCard";
 import { ActivityFilters } from "./timeline/ActivityFilters";
@@ -49,7 +49,7 @@ export default async function ActivityTab({ slug, contactId, searchParams }: Con
     }),
     listCompanyMembers(companyId),
     db.customFieldDef.findMany({ where: { entity: "CONTACT" } }),
-    getUserPermissions(db, companyId, userId),
+    getEffectivePermissions(db, companyId, userId),
   ]);
 
   const hasMore = rows.length > limit;

@@ -9,7 +9,7 @@ import { normalizeEmail, setLifecycle, ensureBillingClient } from "@/lib/crm/con
 import { normalizePhone } from "@/lib/crm/phone";
 import { validateCustomFields } from "@/lib/crm/customFields";
 import { sanitizeNoteHtml, htmlToPreview } from "@/lib/crm/sanitize";
-import { getUserPermissions, canEdit } from "@/lib/permissions";
+import { getEffectivePermissions, canEdit } from "@/lib/permissions";
 
 /**
  * Server action della scheda contatto (agente B).
@@ -318,7 +318,7 @@ export const addContactNote = companyAction(async (
  */
 async function canTouchNote(ctx: CompanyContext, authorUserId: string | null): Promise<boolean> {
   if (authorUserId === ctx.userId) return true;
-  const perms = await getUserPermissions(ctx.db, ctx.companyId, ctx.userId);
+  const perms = await getEffectivePermissions(ctx.db, ctx.companyId, ctx.userId);
   return canEdit(perms, "CONTACTS");
 }
 

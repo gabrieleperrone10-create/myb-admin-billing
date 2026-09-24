@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireCompany } from "@/lib/company";
 import { companyPath } from "@/lib/paths";
-import { canEdit, canView, getUserPermissions } from "@/lib/permissions";
+import { canEdit, canView, getEffectivePermissions } from "@/lib/permissions";
 import { isEncryptionConfigured } from "@/lib/crypto";
 import { getWhatsAppStatus, GRAPH_VERSION } from "@/lib/crm/messaging/whatsapp";
 import WhatsAppSettingsForm from "./WhatsAppSettingsForm";
@@ -23,7 +23,7 @@ async function appOrigin(): Promise<string> {
 export default async function WhatsAppSettingsPage({ params }: { params: Promise<{ company: string }> }) {
   const { company: slug } = await params;
   const ctx = await requireCompany(slug);
-  const perms = await getUserPermissions(ctx.db, ctx.companyId, ctx.userId);
+  const perms = await getEffectivePermissions(ctx.db, ctx.companyId, ctx.userId);
   if (!canView(perms, "SETTINGS")) notFound();
 
   const status = await getWhatsAppStatus(ctx.companyId);

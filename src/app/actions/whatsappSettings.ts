@@ -7,7 +7,7 @@ import { companyAction } from "@/lib/companyAction";
 import type { CompanyContext } from "@/lib/company";
 import { basePrisma } from "@/lib/db";
 import { decryptJson, encryptJson, isEncryptionConfigured } from "@/lib/crypto";
-import { canEdit, getUserPermissions } from "@/lib/permissions";
+import { canEdit, getEffectivePermissions } from "@/lib/permissions";
 import {
   fetchPhoneNumberInfo,
   subscribeAppToWaba,
@@ -34,7 +34,7 @@ import {
 type Result<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
 
 async function assertCanEditSettings(ctx: CompanyContext) {
-  const perms = await getUserPermissions(ctx.db, ctx.companyId, ctx.userId);
+  const perms = await getEffectivePermissions(ctx.db, ctx.companyId, ctx.userId);
   if (!canEdit(perms, "SETTINGS")) throw new Error("Permessi insufficienti per modificare le impostazioni");
 }
 

@@ -4,7 +4,7 @@ import type { CompanyContext } from "@/lib/company";
 import { contactDisplayName } from "@/lib/crm/contacts";
 import { listCompanyMembers, memberName } from "@/lib/crm/members";
 import { getWhatsAppConfig, lastInboundWhatsAppAt, SERVICE_WINDOW_MS } from "@/lib/crm/messaging/whatsapp";
-import { canEdit, canView, getUserPermissions } from "@/lib/permissions";
+import { canEdit, canView, getEffectivePermissions } from "@/lib/permissions";
 import { htmlToText } from "@/lib/crm/messaging/signatures";
 
 /** Tutto serializzabile: passa ai Client Component. */
@@ -64,7 +64,7 @@ function attachmentLabels(raw: unknown): { labels: string[]; template: string | 
 
 export async function loadConversation(ctx: CompanyContext, contactId: string): Promise<ConversationData | null> {
   const { db, companyId } = ctx;
-  const perms = await getUserPermissions(db, companyId, ctx.userId);
+  const perms = await getEffectivePermissions(db, companyId, ctx.userId);
   const contact = await db.contact.findUnique({
     where: { id: contactId },
     select: {

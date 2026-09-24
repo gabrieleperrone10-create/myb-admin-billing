@@ -79,3 +79,21 @@ export function canEdit(p: SectionPermissions, s: AppSection) {
 export function canFull(p: SectionPermissions, s: AppSection) {
   return p[s] === "FULL";
 }
+
+/**
+ * Permessi per i controlli lato server del CRM, allineati a cio' che l'utente
+ * vede nel menu: la sidebar mostra TUTTE le sezioni a chi non ha alcun ruolo
+ * in questa azienda (allowedSections vuoto), e il resto dell'app non applica
+ * permessi lato server. Senza questo allineamento un membro senza ruolo vedeva
+ * le voci del CRM ma riceveva "pagina non trovata" / "permessi insufficienti".
+ * Con almeno un ruolo assegnato valgono i livelli dei ruoli, come prima.
+ */
+export async function getEffectivePermissions(
+  db: CompanyDb,
+  companyId: string,
+  clerkUserId: string,
+): Promise<SectionPermissions> {
+  const own = await db.appUserRole.count({ where: { companyId, clerkUserId } });
+  if (own === 0) return fullPerms();
+  return getUserPermissions(db, companyId, clerkUserId);
+}

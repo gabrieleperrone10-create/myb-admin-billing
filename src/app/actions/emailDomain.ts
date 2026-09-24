@@ -4,14 +4,14 @@ import { revalidatePath } from "next/cache";
 import { companyAction } from "@/lib/companyAction";
 import type { CompanyContext } from "@/lib/company";
 import { basePrisma } from "@/lib/db";
-import { canEdit, getUserPermissions } from "@/lib/permissions";
+import { canEdit, getEffectivePermissions } from "@/lib/permissions";
 import { normalizeDomain } from "@/lib/email/identity";
 import { refreshCompanyEmailDomain, removeCompanyEmailDomain, setupCompanyEmailDomain } from "@/lib/email/domains";
 
 type Result = { ok: true } | { ok: false; error: string };
 
 async function assertCanEditSettings(ctx: CompanyContext) {
-  const perms = await getUserPermissions(ctx.db, ctx.companyId, ctx.userId);
+  const perms = await getEffectivePermissions(ctx.db, ctx.companyId, ctx.userId);
   if (!canEdit(perms, "SETTINGS")) throw new Error("Permessi insufficienti per modificare le impostazioni");
 }
 

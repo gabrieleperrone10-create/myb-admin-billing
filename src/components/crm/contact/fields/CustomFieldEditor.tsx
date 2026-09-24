@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { Pencil, Check, X } from "lucide-react";
 import type { CustomFieldType } from "@prisma/client";
 import { formatFieldValue, type CustomFieldValue } from "@/lib/crm/customFields";
+import { updateContactCustomField } from "@/app/actions/contactDetail";
 
 type SaveResult = { ok: boolean; error?: string };
 
@@ -22,11 +23,13 @@ function toDraftString(type: CustomFieldType, value: CustomFieldValue): string {
 export function CustomFieldEditor({
   def,
   value,
-  onSave,
+  slug,
+  contactId,
 }: {
   def: { key: string; label: string; type: CustomFieldType; options: string[]; required: boolean };
   value: CustomFieldValue;
-  onSave: (raw: string) => Promise<SaveResult>;
+  slug: string;
+  contactId: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(() => toDraftString(def.type, value));
@@ -54,7 +57,7 @@ export function CustomFieldEditor({
   function save(raw: string) {
     setError(null);
     startTransition(async () => {
-      const res = await onSave(raw);
+      const res = await updateContactCustomField(slug, contactId, def.key, raw);
       if (!res.ok) {
         setError(res.error ?? "Errore");
         return;

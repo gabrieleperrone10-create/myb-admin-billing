@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireCompany, companyDisplayName } from "@/lib/company";
 import { companyPath } from "@/lib/paths";
-import { canEdit, canView, getUserPermissions } from "@/lib/permissions";
+import { canEdit, canView, getEffectivePermissions } from "@/lib/permissions";
 import { companyMailIdentity } from "@/lib/cron";
 import { inboundDomainFor } from "@/lib/email/identity";
 import type { EmailDomainMeta } from "@/lib/email/domains";
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export default async function EmailDomainPage({ params }: { params: Promise<{ company: string }> }) {
   const { company: slug } = await params;
   const ctx = await requireCompany(slug);
-  const perms = await getUserPermissions(ctx.db, ctx.companyId, ctx.userId);
+  const perms = await getEffectivePermissions(ctx.db, ctx.companyId, ctx.userId);
   if (!canView(perms, "SETTINGS")) notFound();
 
   const c = ctx.company;
