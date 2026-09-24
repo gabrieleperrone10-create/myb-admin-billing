@@ -1,7 +1,7 @@
 import type { ContactTabProps } from "./types";
+import ConversationView from "@/components/crm/conversations/ConversationView";
 
-// Segnaposto. Proprietario: agente C — thread email + WhatsApp e composer
-export default async function ConversationTab({ contactId }: ContactTabProps) {
-  void contactId;
-  return <p className="text-[13px] py-8 text-center" style={{ color: "var(--fg-3)" }}>In costruzione</p>;
+/** Tab "Conversazione": thread unico email + WhatsApp con composer. */
+export default async function ConversationTab({ slug, contactId }: ContactTabProps) {
+  return <ConversationView slug={slug} contactId={contactId} variant="tab" />;
 }
