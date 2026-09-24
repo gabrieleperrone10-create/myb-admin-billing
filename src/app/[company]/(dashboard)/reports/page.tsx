@@ -81,6 +81,7 @@ export default async function ReportsPage({
           ownerId={scope.ownerId ?? ""}
           showPipeline={tab !== "appointments"}
           allPipelinesLabel={tab === "funnel" ? null : "Tutte"}
+          includeStripe={tab === "appointments" ? undefined : scope.includeStripe}
         />
       </Suspense>
 
@@ -140,8 +141,8 @@ async function OverviewTab({ rc }: { rc: Rc }) {
 
       <Note>
         <strong className="text-fg">Come leggere i numeri.</strong> L&apos;<em>incassato</em> dei KPI è quanto hanno pagato ad oggi i
-        lead creati nel periodo (fatture pagate, al netto delle note di credito che le stornano; esclusi i pagamenti Stripe
-        come nella dashboard). ROAS = incassato / spesa; CPL = spesa / nuovi lead; CAC = spesa / lead diventati clienti.
+        lead creati nel periodo (fatture pagate, al netto delle note di credito che le stornano; i pagamenti Stripe contano solo con
+        &quot;Includi pagamenti Stripe&quot; attivo: disattivalo per i funnel in cui Stripe è solo denaro di passaggio). ROAS = incassato / spesa; CPL = spesa / nuovi lead; CAC = spesa / lead diventati clienti.
         La spesa di voci a cavallo del periodo è ripartita in proporzione ai giorni. Le variazioni % confrontano con il
         periodo precedente di pari durata: per i periodi recenti l&apos;incassato può ancora crescere.
         {rc.scope.ownerId && " Con il filtro responsabile attivo la spesa resta quella totale (non è assegnabile a una persona)."}

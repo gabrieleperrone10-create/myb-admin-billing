@@ -2,7 +2,7 @@ import "server-only";
 import type { CompanyDb, Prisma } from "@/lib/db";
 import { bucketKey, dayOf, listBuckets, type DateRange, type Granularity, type ResolvedPeriod } from "./period";
 import { aggregateSpend, dayToStored, type SpendEntry } from "./spend";
-import { collectionEvents, sumByContact, type CreditNoteRow, type PaidInvoiceRow } from "./revenue";
+import { collectionEvents, sumByContact, type CreditNoteRow, type PaidInvoiceRow, EXCLUDED_PAYMENT_METHODS } from "./revenue";
 import { computeAttribution, isCustomer, type AttributionMetrics, type SourceRow } from "./attribution";
 import { computeFunnel, type FunnelResult, type FunnelStage } from "./funnel";
 import { cac, cpl, deltaPct, rate, roas } from "./metrics";
@@ -24,7 +24,18 @@ export type ReportScope = {
   pipelineId: string | null;
   /** Responsabile: Contact.ownerUserId per i lead, Opportunity.ownerUserId per le opportunita', hostUserId per gli appuntamenti */
   ownerId: string | null;
+  /**
+   * Conta i pagamenti Stripe nell'incassato. Default si': se Stripe e' incasso
+   * vero o denaro di passaggio dipende dal funnel, quindi e' un filtro dei
+   * report (?stripe=0 per escluderli). La dashboard finanziaria mantiene la
+   * propria regola (Stripe = pass-through, vedi ARCHITECTURE.md).
+   */
+  includeStripe: boolean;
 };
+
+function excludedMethods(scope: ReportScope): readonly string[] {
+  return scope.includeStripe ? [] : EXCLUDED_PAYMENT_METHODS;
+}
 
 type Range = Pick<DateRange, "from" | "to" | "fromDay" | "toDay">;
 
@@ -54,7 +65,7 @@ export async function loadSpendEntries(db: CompanyDb, r: Pick<DateRange, "fromDa
 
 // ─── Coorte (lead creati nel periodo) ──────────────────────────────────────
 
-async function loadCohortRevenue(db: CompanyDb, cw: Prisma.ContactWhereInput) {
+async function loadCohortRevenue(db: CompanyDb, cw: Prisma.ContactWhereInput, scope: ReportScope) {
   const [invoices, notes] = await Promise.all([
     db.invoice.findMany({
       where: { status: "PAID", client: { contact: cw } },
@@ -69,7 +80,7 @@ async function loadCohortRevenue(db: CompanyDb, cw: Prisma.ContactWhereInput) {
       select: { invoiceId: true, amount: true, issueDate: true },
     }),
   ]);
-  return collectionEvents(toInvoiceRows(invoices), notes as CreditNoteRow[]);
+  return collectionEvents(toInvoiceRows(invoices), notes as CreditNoteRow[], excludedMethods(scope));
 }
 
 type InvoiceSelect = {
@@ -100,7 +111,7 @@ export async function loadCohort(db: CompanyDb, r: Range, scope: ReportScope) {
       select: { contactId: true },
       distinct: ["contactId"],
     }),
-    loadCohortRevenue(db, cw),
+    loadCohortRevenue(db, cw, scope),
   ]);
   const collectedByContact = sumByContact(events);
   const wonContactIds = new Set(wonRows.map(w => w.contactId));
@@ -163,7 +174,7 @@ async function loadCohortTotals(db: CompanyDb, r: Range, scope: ReportScope) {
   const [contacts, wonRows, events] = await Promise.all([
     db.contact.findMany({ where: cw, select: { id: true, lifecycle: true } }),
     db.opportunity.findMany({ where: { status: "WON", contact: cw }, select: { contactId: true }, distinct: ["contactId"] }),
-    loadCohortRevenue(db, cw),
+    loadCohortRevenue(db, cw, scope),
   ]);
   const byContact = sumByContact(events);
   const wonIds = new Set(wonRows.map(w => w.contactId));
@@ -187,7 +198,7 @@ export async function getSalesSummary(
 ): Promise<PeriodKpis> {
   void companyId; // l'isolamento e' gia' in `db`; il parametro resta per le future query raw
   const range: Range = { from, to, fromDay: dayOf(from, timezone), toDay: dayOf(new Date(to.getTime() - 1), timezone) };
-  return getPeriodKpis(db, range, { pipelineId: null, ownerId: null });
+  return getPeriodKpis(db, range, { pipelineId: null, ownerId: null, includeStripe: true });
 }
 
 // ─── Panoramica ─────────────────────────────────────────────────────────────
@@ -251,7 +262,7 @@ async function loadTrend(db: CompanyDb, p: ResolvedPeriod, scope: ReportScope) {
         select: { invoiceId: true, amount: true, issueDate: true },
       })
     : [];
-  const events = collectionEvents(toInvoiceRows(invoices), notes).filter(e => e.at >= p.from && e.at < p.to);
+  const events = collectionEvents(toInvoiceRows(invoices), notes, excludedMethods(scope)).filter(e => e.at >= p.from && e.at < p.to);
 
   const buckets = listBuckets(p, p.granularity);
   const map = new Map<string, TrendPoint>(buckets.map(b => [b.key, { key: b.key, label: b.label, leads: 0, won: 0, collected: 0 }]));

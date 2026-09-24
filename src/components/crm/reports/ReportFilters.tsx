@@ -23,6 +23,7 @@ export function ReportFilters({
   showPipeline = true,
   showOwner = true,
   allPipelinesLabel = "Tutte",
+  includeStripe,
 }: {
   preset: PeriodPreset;
   fromDay: string;
@@ -35,6 +36,8 @@ export function ReportFilters({
   showOwner?: boolean;
   /** Voce "tutte le pipeline" (null = obbligo di sceglierne una, es. imbuto) */
   allPipelinesLabel?: string | null;
+  /** Se definito mostra l'interruttore "Includi pagamenti Stripe" */
+  includeStripe?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -95,6 +98,13 @@ export function ReportFilters({
               {allPipelinesLabel && <option value="">{allPipelinesLabel}</option>}
               {pipelines.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
+          </label>
+        )}
+
+        {includeStripe !== undefined && (
+          <label className="flex items-center gap-1.5 text-[12px] text-fg-3" title="Dipende dal funnel: disattiva se i pagamenti Stripe sono solo denaro di passaggio">
+            <input type="checkbox" checked={includeStripe} onChange={e => push({ stripe: e.target.checked ? null : "0" })} />
+            Includi pagamenti Stripe
           </label>
         )}
 

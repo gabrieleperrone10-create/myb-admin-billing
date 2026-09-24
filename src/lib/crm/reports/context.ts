@@ -6,6 +6,8 @@ import { resolvePeriod } from "./period";
 import type { ReportScope } from "./queries";
 
 export type ReportSearchParams = {
+  /** \"0\" = escludi i pagamenti Stripe dall'incassato */
+  stripe?: string;
   tab?: string;
   period?: string;
   from?: string;
@@ -27,7 +29,7 @@ export async function loadReportContext(slug: string, raw: Record<string, string
   const ctx = await requireCompany(slug);
   const sp: ReportSearchParams = {
     tab: one(raw.tab), period: one(raw.period), from: one(raw.from), to: one(raw.to),
-    pipeline: one(raw.pipeline), owner: one(raw.owner),
+    pipeline: one(raw.pipeline), owner: one(raw.owner), stripe: one(raw.stripe),
   };
 
   const [perms, pipelinesRaw, members] = await Promise.all([
@@ -42,7 +44,7 @@ export async function loadReportContext(slug: string, raw: Record<string, string
   const period = resolvePeriod(sp.period, sp.from, sp.to, ctx.company.timezone || "Europe/Rome");
   const pipelineId = sp.pipeline && pipelinesRaw.some(p => p.id === sp.pipeline) ? sp.pipeline : null;
   const ownerId = sp.owner && members.some(m => m.userId === sp.owner) ? sp.owner : null;
-  const scope: ReportScope = { pipelineId, ownerId };
+  const scope: ReportScope = { pipelineId, ownerId, includeStripe: sp.stripe !== "0" };
 
   const query = new URLSearchParams();
   for (const [k, v] of Object.entries(sp)) if (v) query.set(k, v);

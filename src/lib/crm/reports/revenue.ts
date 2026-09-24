@@ -10,8 +10,10 @@
  *  - importo = Payment.amount se la fattura ha un pagamento collegato (e' il
  *    denaro effettivamente arrivato), altrimenti Invoice.amount;
  *  - data = Payment.paidAt, altrimenti Invoice.paidAt, altrimenti issueDate;
- *  - pagamenti con metodo in EXCLUDED_PAYMENT_METHODS (STRIPE) sono esclusi, come
- *    nella dashboard principale (vedi ARCHITECTURE.md: Stripe e' un pass-through);
+ *  - i metodi in `excluded` non contano. Nei report di vendita Stripe CONTA di
+ *    default (dipende dal funnel se e' incasso vero): lo si esclude col filtro
+ *    "Includi pagamenti Stripe" (ReportScope.includeStripe). La dashboard
+ *    finanziaria resta con la sua regola (Stripe = pass-through);
  *  - NOTE DI CREDITO: riducono l'incassato solo se collegate a una fattura che e'
  *    stata contata (una nota che storna una fattura mai pagata non restituisce
  *    denaro incassato). Stato CANCELLED ignorato. Lo storno di una fattura e'
