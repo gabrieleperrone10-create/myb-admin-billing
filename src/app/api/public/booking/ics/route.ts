@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveByManageToken, requestOrigin } from "@/lib/booking/public";
+import { resolveByManageToken, requestOrigin, rateLimited, clientIp } from "@/lib/booking/public";
 import { buildIcs } from "@/lib/booking/ics";
 import { manageBookingPath } from "@/lib/booking/shared";
 import { appBaseUrl } from "@/lib/booking/emails";
@@ -7,6 +7,9 @@ import { companyDisplayName } from "@/lib/company";
 
 /** GET /api/public/booking/ics?token= — file .ics dell'appuntamento ("aggiungi al calendario"). */
 export async function GET(req: NextRequest) {
+  if (rateLimited(`ics:${clientIp(req)}`, 30, 10 * 60_000)) {
+    return NextResponse.json({ error: "Troppe richieste, riprova tra poco" }, { status: 429 });
+  }
   const token = req.nextUrl.searchParams.get("token") ?? "";
   const ctx = await resolveByManageToken(token);
   if (!ctx) return NextResponse.json({ error: "Prenotazione non trovata" }, { status: 404 });

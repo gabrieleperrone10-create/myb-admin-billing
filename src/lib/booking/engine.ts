@@ -3,6 +3,7 @@ import { Prisma, type Appointment, type AppointmentStatus, type Availability, ty
 import type { CompanyDb } from "@/lib/db";
 import { upsertContact, contactDisplayName, normalizeEmail } from "@/lib/crm/contacts";
 import { identifyVisitor } from "@/lib/crm/tracking/identify";
+import { secureToken } from "@/lib/crm/tokens";
 import { logActivity } from "@/lib/crm/activity";
 import { createOpportunity } from "@/lib/crm/opportunities";
 import { coerceFieldValue, type CustomFieldValue, type CustomFieldValues } from "@/lib/crm/customFields";
@@ -228,7 +229,8 @@ export async function bookAppointment(
         ownerUserId: cal.hostUserId,
         attribution: input.attribution ?? null,
         customFields: parsed.value.custom,
-      }, { actorUserId: input.actorUserId }));
+      // Prenotazione dalla pagina pubblica (nessun actor) = dati non fidati.
+      }, { actorUserId: input.actorUserId, untrusted: !input.actorUserId }));
     } catch (e) {
       return { ok: false, status: 400, error: e instanceof Error ? e.message : "Contatto non valido" };
     }
@@ -252,6 +254,7 @@ export async function bookAppointment(
         calendarId: cal.id,
         contactId: contact.id,
         hostUserId: cal.hostUserId,
+        manageToken: secureToken(),
         title: `${cal.name} — ${guestName}`,
         startTime: start,
         endTime: end,

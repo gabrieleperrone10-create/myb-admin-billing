@@ -8,6 +8,7 @@ import { logActivity } from "@/lib/crm/activity";
 import { normalizeEmail, setLifecycle, ensureBillingClient } from "@/lib/crm/contacts";
 import { normalizePhone } from "@/lib/crm/phone";
 import { validateCustomFields } from "@/lib/crm/customFields";
+import { sanitizeNoteHtml, htmlToPreview } from "@/lib/crm/sanitize";
 import { getUserPermissions, canEdit } from "@/lib/permissions";
 
 /**
@@ -147,6 +148,10 @@ export const updateContactOwner = companyAction(async (
   const current = await ctx.db.contact.findUnique({ where: { id: contactId }, select: { ownerUserId: true } });
   if (!current) return { ok: false, error: "Contatto non trovato" };
   if (current.ownerUserId === ownerUserId) return { ok: true };
+  if (ownerUserId) {
+    const isMember = await ctx.db.companyMember.findFirst({ where: { clerkUserId: ownerUserId, companyId: ctx.companyId } });
+    if (!isMember) return { ok: false, error: "Responsabile non valido" };
+  }
 
   await ctx.db.contact.update({ where: { id: contactId }, data: { ownerUserId } });
   await logActivity(ctx.db, ctx.companyId, {
@@ -287,41 +292,6 @@ export const deleteContact = companyAction(async (ctx, contactId: string): Promi
 });
 
 // ─── Note ────────────────────────────────────────────────────────────────────
-
-/**
- * Whitelist di tag semplice per l'HTML delle note (niente librerie nuove).
- * Rimuove script/style/commenti, scarta ogni tag non in whitelist (tenendo il
- * testo dentro), e su <a> tiene solo un href http(s)/mailto validato — cosi'
- * anche un "on*" o uno stile inline arrivato per errore dall'editor sparisce,
- * perche' NESSUN attributo sopravvive tranne quell'href ricostruito a mano.
- */
-const NOTE_ALLOWED_TAGS = new Set([
-  "p", "br", "strong", "b", "em", "i", "u", "s", "ul", "ol", "li", "a", "blockquote", "code", "h1", "h2", "h3",
-]);
-
-function sanitizeNoteHtml(html: string): string {
-  let out = html.replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, "");
-  out = out.replace(/<!--[\s\S]*?-->/g, "");
-  out = out.replace(/<\/?([a-zA-Z0-9]+)([^>]*)>/g, (match, tagRaw: string, attrsRaw: string) => {
-    const tag = String(tagRaw).toLowerCase();
-    const isClosing = match.startsWith("</");
-    if (!NOTE_ALLOWED_TAGS.has(tag)) return "";
-    if (isClosing) return `</${tag}>`;
-    if (tag === "a") {
-      const hrefMatch = /href\s*=\s*"([^"]*)"|href\s*=\s*'([^']*)'/i.exec(attrsRaw);
-      const href = (hrefMatch ? hrefMatch[1] ?? hrefMatch[2] : "") ?? "";
-      const safeHref = /^(https?:|mailto:)/i.test(href.trim()) ? href.trim() : "";
-      return safeHref ? `<a href="${safeHref.replace(/"/g, "&quot;")}" target="_blank" rel="noopener noreferrer nofollow">` : "<a>";
-    }
-    return `<${tag}>`;
-  });
-  return out.trim();
-}
-
-function htmlToPreview(html: string, max = 140): string {
-  const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
-}
 
 export const addContactNote = companyAction(async (
   ctx, contactId: string, html: string,

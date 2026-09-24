@@ -173,7 +173,7 @@ export async function processFormSubmission(
       ownerUserId: settings.ownerUserId ?? null,
       attribution,
       customFields: cfValues,
-    });
+    }, { untrusted: true });
 
     const submission = await db.formSubmission.create({
       data: {

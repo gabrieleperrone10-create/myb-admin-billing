@@ -108,7 +108,7 @@ export default function MessageBubble({ m }: { m: ThreadMessage }) {
                 <iframe
                   title="Email originale"
                   sandbox=""
-                  srcDoc={m.html}
+                  srcDoc={`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">${m.html}`}
                   className="mt-1.5 w-full h-[360px] rounded-[var(--r-md)] bg-white"
                   style={{ border: "1px solid var(--border)" }}
                 />

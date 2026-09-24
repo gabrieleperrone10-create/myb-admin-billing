@@ -1,5 +1,6 @@
 "use server";
 
+import { plainTextToNoteHtml } from "@/lib/crm/sanitize";
 import { revalidatePath } from "next/cache";
 import { companyAction } from "@/lib/companyAction";
 import { createOpportunity, moveOpportunity, markWon, markLost, updateOpportunity } from "@/lib/crm/opportunities";
@@ -232,8 +233,11 @@ async function addOpportunityNoteInternal(
   body: string,
   actorUserId: string,
 ) {
+  // Il testo arriva da una textarea: si salva come HTML con escape, mai grezzo
+  // (NoteCard lo rende con dangerouslySetInnerHTML).
+  const html = plainTextToNoteHtml(body);
   const note = await db.note.create({
-    data: { companyId, contactId, opportunityId, authorUserId: actorUserId, body },
+    data: { companyId, contactId, opportunityId, authorUserId: actorUserId, body: html },
   });
   await logActivity(db, companyId, {
     contactId,

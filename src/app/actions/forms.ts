@@ -72,6 +72,10 @@ export const saveForm = companyAction(async (
     });
     if (!stage) return { ok: false, error: "Fase della pipeline non valida" };
   }
+  if (input.settings.ownerUserId) {
+    const isMember = await ctx.db.companyMember.findFirst({ where: { clerkUserId: input.settings.ownerUserId, companyId: ctx.companyId } });
+    if (!isMember) return { ok: false, error: "Responsabile non valido" };
+  }
   if (input.settings.tagIds?.length) {
     const count = await ctx.db.crmTag.count({ where: { id: { in: input.settings.tagIds } } });
     if (count !== input.settings.tagIds.length) return { ok: false, error: "Una o più etichette non sono valide" };

@@ -75,6 +75,21 @@ export const saveWhatsAppSettings = companyAction(async (ctx, input: SaveWhatsAp
     return { ok: false, error: "Access Token e App Secret sono obbligatori" };
   }
 
+  // Attivare richiede di dimostrare il possesso del numero: il token deve poter
+  // leggere quel phoneNumberId sulla Graph API. Senza questo controllo
+  // un'azienda potrebbe "occupare" il numero di un'altra (che non riuscirebbe
+  // piu' ad attivarlo e vedrebbe i propri webhook rifiutati).
+  if (v.active) {
+    try {
+      await fetchPhoneNumberInfo(v.phoneNumberId, secrets.accessToken);
+    } catch (e) {
+      return {
+        ok: false,
+        error: `Impossibile verificare il numero con questo Access Token: ${e instanceof Error ? e.message : "errore Graph API"}`,
+      };
+    }
+  }
+
   // Un numero puo' appartenere a una sola azienda attiva. Lookup globale
   // (basePrisma) inevitabile: serve proprio a vedere le ALTRE aziende. Non
   // restituisce nulla di loro, solo l'esito.

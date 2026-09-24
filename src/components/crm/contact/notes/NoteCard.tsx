@@ -1,5 +1,6 @@
 "use client";
 
+import { sanitizeNoteHtml } from "@/lib/crm/sanitize";
 import { useState, useTransition } from "react";
 import { Pin, PinOff, Pencil, Trash2, StickyNote } from "lucide-react";
 import { deleteContactNote, toggleContactNotePin, updateContactNote } from "@/app/actions/contactDetail";
@@ -91,7 +92,7 @@ export function NoteCard({
           </div>
         )}
       </div>
-      <div className="note-body text-[13px] prose prose-sm max-w-none" style={{ color: "var(--fg)" }} dangerouslySetInnerHTML={{ __html: note.body }} />
+      <div className="note-body text-[13px] prose prose-sm max-w-none" style={{ color: "var(--fg)" }} dangerouslySetInnerHTML={{ __html: sanitizeNoteHtml(note.body) }} />
       {error && <p className="text-[11px] mt-1" style={{ color: "var(--danger)" }}>{error}</p>}
       <style>{`
         .note-body ul { list-style: disc; padding-left: 1.3rem; }

@@ -170,15 +170,12 @@ async function resolveInboundContact(data: EmailEventData): Promise<{ id: string
     if (c) return c;
   }
 
-  // Nessun token: si prova col mittente, ma SOLO se univoco fra tutte le
-  // aziende. Con due aziende che hanno lo stesso contatto non c'e' modo di
-  // sapere a quale sia destinata: meglio scartare che consegnare alla
-  // sbagliata (sarebbe una fuga di dati fra aziende).
-  const sender = extractEmailAddress(data.from);
-  if (!sender) return null;
-  const matches = await basePrisma.contact.findMany({ where: { email: sender }, select: { id: true, companyId: true }, take: 2 });
-  if (matches.length === 1) return matches[0];
-  console.warn(`[webhook resend] email.received scartata: ${matches.length ? "mittente presente in piu' aziende" : "nessun contatto corrispondente"} (email_id ${data.email_id})`);
+  // Nessun token: si scarta. Il "From" di un'email non e' autenticato (niente
+  // controllo SPF/DKIM qui), quindi associare per mittente permetterebbe a
+  // chiunque di inserire messaggi nel thread di un cliente vero scrivendo al
+  // dominio inbound con un From falsificato. Le risposte legittime passano
+  // sempre dal Reply-To c-<token>@ impostato in uscita.
+  console.warn(`[webhook resend] email.received scartata: destinatario senza token (email_id ${data.email_id})`);
   return null;
 }
 

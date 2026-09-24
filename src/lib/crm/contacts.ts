@@ -3,6 +3,7 @@ import { Prisma, type Contact, type ContactLifecycle } from "@prisma/client";
 import type { CompanyDb } from "@/lib/db";
 import { logActivity } from "./activity";
 import { normalizePhone } from "./phone";
+import { secureToken } from "./tokens";
 import type { Attribution } from "./types";
 import type { CustomFieldValues } from "./customFields";
 
@@ -50,7 +51,18 @@ export async function upsertContact(
   db: CompanyDb,
   companyId: string,
   input: UpsertContactInput,
-  opts: { actorUserId?: string | null } = {},
+  opts: {
+    actorUserId?: string | null;
+    /**
+     * Dati da un canale pubblico non autenticato (form, prenotazione): chiunque
+     * puo' digitare l'email di un cliente vero. Su un contatto ESISTENTE si
+     * riempiono solo nome/cognome/azienda/ruolo mancanti e i campi personalizzati
+     * ancora vuoti; recapiti (email/telefono/WhatsApp), responsabile e stato non
+     * si toccano, cosi' nessuno puo' dirottare i messaggi del CRM verso il
+     * proprio numero. I valori proposti restano comunque nella FormSubmission.
+     */
+    untrusted?: boolean;
+  } = {},
 ): Promise<{ contact: Contact; created: boolean }> {
   const email = normalizeEmail(input.email);
   const phone = normalizePhone(input.phone);
@@ -63,7 +75,7 @@ export async function upsertContact(
     ?? (whatsapp ? await db.contact.findFirst({ where: { OR: [{ whatsapp }, { phone: whatsapp }] } }) : null);
 
   const existing = await find();
-  if (existing) return { contact: await mergeInto(db, existing, { ...input, email, phone, whatsapp }), created: false };
+  if (existing) return { contact: await mergeInto(db, existing, { ...input, email, phone, whatsapp }, !!opts.untrusted), created: false };
 
   try {
     const contact = await db.contact.create({
@@ -80,6 +92,7 @@ export async function upsertContact(
         ownerUserId: input.ownerUserId ?? null,
         attribution: input.attribution ? (input.attribution as Prisma.InputJsonValue) : Prisma.JsonNull,
         customFields: (input.customFields ?? {}) as Prisma.InputJsonValue,
+        replyToken: secureToken(),
       },
     });
     await logActivity(db, companyId, {
@@ -92,7 +105,7 @@ export async function upsertContact(
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       const again = await find();
-      if (again) return { contact: await mergeInto(db, again, { ...input, email, phone, whatsapp }), created: false };
+      if (again) return { contact: await mergeInto(db, again, { ...input, email, phone, whatsapp }, !!opts.untrusted), created: false };
     }
     throw e;
   }
@@ -103,19 +116,27 @@ function clean(s: string | null | undefined): string | null {
   return t ? t : null;
 }
 
-async function mergeInto(db: CompanyDb, c: Contact, input: UpsertContactInput): Promise<Contact> {
+async function mergeInto(db: CompanyDb, c: Contact, input: UpsertContactInput, untrusted: boolean): Promise<Contact> {
   const data: Prisma.ContactUpdateInput = {};
   const fill = <K extends "email" | "phone" | "whatsapp" | "firstName" | "lastName" | "companyName" | "jobTitle">(k: K) => {
     const v = clean(input[k] as string | null | undefined);
     if (v && !c[k]) data[k] = v;
   };
-  (["email", "phone", "whatsapp", "firstName", "lastName", "companyName", "jobTitle"] as const).forEach(fill);
-  if (!c.ownerUserId && input.ownerUserId) data.ownerUserId = input.ownerUserId;
+  const fields = untrusted
+    ? (["firstName", "lastName", "companyName", "jobTitle"] as const)
+    : (["email", "phone", "whatsapp", "firstName", "lastName", "companyName", "jobTitle"] as const);
+  fields.forEach(fill);
+  if (!untrusted && !c.ownerUserId && input.ownerUserId) data.ownerUserId = input.ownerUserId;
   if (!c.attribution && input.attribution) data.attribution = input.attribution as Prisma.InputJsonValue;
   if (input.customFields && Object.keys(input.customFields).length) {
-    data.customFields = { ...(c.customFields as object), ...input.customFields } as Prisma.InputJsonValue;
+    const current = (c.customFields ?? {}) as Record<string, unknown>;
+    const incoming = untrusted
+      ? Object.fromEntries(Object.entries(input.customFields).filter(([k]) => current[k] === undefined || current[k] === null || current[k] === ""))
+      : input.customFields;
+    if (Object.keys(incoming).length) data.customFields = { ...current, ...incoming } as Prisma.InputJsonValue;
   }
-  if (c.lifecycle === "ARCHIVED") data.lifecycle = "LEAD"; // un archiviato che torna a farsi vivo e' di nuovo un lead
+  // un archiviato che torna a farsi vivo e' di nuovo un lead (solo da canali fidati)
+  if (!untrusted && c.lifecycle === "ARCHIVED") data.lifecycle = "LEAD";
   if (!Object.keys(data).length) return c;
   try {
     return await db.contact.update({ where: { id: c.id }, data });
