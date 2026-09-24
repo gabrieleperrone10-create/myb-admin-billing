@@ -299,7 +299,7 @@ export default function KnowledgePage() {
           ))}
         </div>
         <div className="space-y-0">
-          <Kv label="Genera subito"       value="Dal dettaglio contratto → 'Piano fatturazione' → bottone 'Genera subito'. Crea la prossima rata come bozza e apre direttamente la fattura." />
+          <Kv label="Genera subito"       value="Dal dettaglio contratto → 'Piano fatturazione' → bottone 'Genera subito'. Crea la prossima rata e apre direttamente la fattura. La prima rata resta in bozza; dalla seconda in poi viene inviata subito al cliente." />
           <Kv label="Giorno fatturazione" value="Determina il giorno del mese in cui il cron auto-genera le rate successive. Suggerimento: metti lo stesso giorno della startDate così le date coincidono sempre." />
           <Kv label="Deposito auto"      value="Se crei un contratto con deposito, la fattura acconto viene generata automaticamente come bozza. Quando la segni pagata, la fattura si aggiorna a PAID (non crea duplicati)." />
           <Kv label="Elimina contratto"  value="Visibile solo se non ci sono fatture pagate. Elimina automaticamente anche le fatture bozza collegate." />
@@ -314,7 +314,7 @@ export default function KnowledgePage() {
           <Kv label="Promemoria insolute" value="Email automatica al team quando una fattura supera la scadenza. Configurabile ogni N giorni." />
           <Kv label="Alert insolute"      value="Notifica istantanea quando una fattura passa in stato OVERDUE." />
           <Kv label="Report mensile"      value="Riepilogo mensile delle performance inviato via email a fine mese." />
-          <Kv label="Fatture ricorrenti"  value="Generazione automatica delle fatture per tutti i tipi di contratto attivi. Gira ogni giorno alle 9:00." />
+          <Kv label="Fatture ricorrenti"  value="Generazione automatica delle fatture per tutti i tipi di contratto attivi. Gira ogni giorno alle 9:00. Dalla seconda rata in poi la fattura viene inviata subito al cliente (non resta in bozza)." />
           <Kv label="Cron schedule"       value="Le automazioni girano come Vercel Cron Jobs alle 9:00 ogni giorno." />
         </div>
       </Section>

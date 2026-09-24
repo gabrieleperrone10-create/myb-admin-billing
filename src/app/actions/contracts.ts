@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { companyAction } from "@/lib/companyAction";
-import { sendContractCreatedEmails } from "@/lib/mail";
+import { sendContractCreatedEmails, sendInvoiceEmail } from "@/lib/mail";
 import { nextInvoiceNumber } from "@/lib/numbering";
 
 export const createContract = companyAction(async (ctx, formData: FormData) => {
@@ -227,6 +227,10 @@ export const generateNextInvoice = companyAction(async (ctx, contractId: string)
       ],
     },
   });
+
+  // Dalla seconda rata in poi la fattura parte subito al cliente (niente bozza).
+  // Se l'invio fallisce resta DRAFT e l'utente la vede nel dettaglio.
+  if (invoiceCount >= 1) await sendInvoiceEmail(ctx.companyId, invoice.id);
 
   revalidatePath(`/${ctx.slug}/contracts/${contractId}`);
   revalidatePath(`/${ctx.slug}/invoices`);

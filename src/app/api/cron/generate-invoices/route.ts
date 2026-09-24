@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { forEachCompany, isAuthorizedCron } from "@/lib/cron";
 import { nextInvoiceNumber } from "@/lib/numbering";
+import { sendInvoiceEmail } from "@/lib/mail";
 
 const PERIOD_MONTHS: Record<string, number> = {
   MONTHLY: 1, QUARTERLY: 3, ANNUALLY: 12,
@@ -28,6 +29,7 @@ export async function GET(req: NextRequest) {
 
   const today   = new Date();
   const created: string[] = [];
+  const sendFailed: string[] = [];
 
   for (const contract of contracts) {
     // Non iniziare le rate se il deposito non è stato pagato
@@ -73,7 +75,7 @@ export async function GET(req: NextRequest) {
       const number = await nextInvoiceNumber(
         db, company.id, company.invoicePrefix, company.numberPadding, nextDate.getFullYear(),
       );
-      await db.invoice.create({
+      const invoice = await db.invoice.create({
         data: {
           companyId:  company.id,
           number,
@@ -95,11 +97,19 @@ export async function GET(req: NextRequest) {
       });
 
       created.push(`${contract.id} → ${number} (rata ${invoiceCount + 1})`);
+
+      // Dalla seconda rata in poi la fattura parte subito al cliente: solo la
+      // prima resta in bozza per il controllo manuale. Se l'invio fallisce
+      // (es. cliente senza email) resta DRAFT e la segnaliamo.
+      if (invoiceCount >= 1) {
+        const res = await sendInvoiceEmail(company.id, invoice.id);
+        if (!res.ok) sendFailed.push(`${number}: ${res.error}`);
+      }
       invoiceCount++;
     }
   }
 
-    return { created };
+    return { created, sendFailed };
   });
 
   return NextResponse.json({ ok: true, runs });
