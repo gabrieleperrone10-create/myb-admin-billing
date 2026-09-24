@@ -39,6 +39,13 @@ export const createContract = companyAction(async (ctx, formData: FormData) => {
     },
   });
 
+  // Contratto nato da un'opportunita' vinta nel CRM: la si collega. updateMany
+  // (filtrato per azienda dall'estensione) non fallisce se l'id non esiste.
+  const opportunityId = formData.get("opportunityId") as string | null;
+  if (opportunityId) {
+    await ctx.db.opportunity.updateMany({ where: { id: opportunityId }, data: { contractId: contract.id } });
+  }
+
   if (hasDeposit && depositAmount) {
     await ctx.db.deposit.create({
       data: {

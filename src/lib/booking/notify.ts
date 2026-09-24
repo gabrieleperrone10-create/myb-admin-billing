@@ -5,6 +5,8 @@ import type { CompanyDb } from "@/lib/db";
 import { companyMailIdentity } from "@/lib/cron";
 import { listCompanyMembers } from "@/lib/crm/members";
 import { buildGuestEmail, buildHostEmail, type BuiltEmail } from "./emails";
+import { companyDb } from "@/lib/db";
+import { sendWhatsAppText } from "@/lib/crm/messaging/whatsapp";
 
 /**
  * Invio delle notifiche di prenotazione dietro un'interfaccia di canale
@@ -83,14 +85,27 @@ export const emailChannel: BookingChannel = {
   },
 };
 
+/**
+ * WhatsApp via lib/crm/messaging: scrive Message + Activity nel thread del
+ * contatto e rispetta l'opt-out. Limite noto: il testo libero e' ammesso solo
+ * entro 24h dall'ultimo messaggio del contatto; fuori finestra Meta richiede un
+ * template approvato, che per i promemoria non e' ancora configurabile — in quel
+ * caso l'invio fallisce con errore esplicito nel NotificationLog.
+ * La configurazione (per azienda) si verifica in send(): isConfigured() e'
+ * sincrono e non puo' leggere il DB.
+ */
 export const whatsappChannel: BookingChannel = {
   id: "WHATSAPP",
   label: "WhatsApp",
-  // TODO integrazione: usare lib/crm/messaging/whatsapp.ts (template approvato)
-  isConfigured: () => false,
+  isConfigured: () => true,
   recipient: a => a.guestPhone || null,
-  async send() {
-    return { ok: false, error: "WhatsApp non configurato" };
+  async send(_to, ctx) {
+    const email = buildGuestEmail(ctx.kind, ctx.appointment, ctx.calendar, ctx.company, ctx.baseUrl, { offsetMinutes: ctx.offsetMinutes });
+    const r = await sendWhatsAppText(companyDb(ctx.company.id), ctx.company.id, {
+      contactId: ctx.appointment.contactId,
+      text: email.text,
+    });
+    return r.ok ? { ok: true, id: r.messageId } : { ok: false, error: r.error };
   },
 };
 

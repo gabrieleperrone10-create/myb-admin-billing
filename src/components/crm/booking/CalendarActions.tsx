@@ -129,7 +129,7 @@ export function ReminderRulesEditor({ slug, initial }: { slug: string; initial: 
             <span className="text-[13px] text-fg-2">prima, via</span>
             <select className={inputCls} value={r.channel} onChange={e => update(i, { channel: e.target.value as Rule["channel"] })}>
               <option value="EMAIL">Email</option>
-              <option value="WHATSAPP">WhatsApp (in arrivo)</option>
+              <option value="WHATSAPP">WhatsApp</option>
             </select>
             <label className="flex items-center gap-1 text-[12px] text-fg-2">
               <input type="checkbox" checked={r.active} onChange={e => update(i, { active: e.target.checked })} /> attivo
@@ -141,7 +141,7 @@ export function ReminderRulesEditor({ slug, initial }: { slug: string; initial: 
         );
       })}
       {rules.some(r => r.channel === "WHATSAPP") && (
-        <p className="text-[12px] text-warn">WhatsApp è in arrivo: per ora questi promemoria vengono registrati come &quot;non configurato&quot; e non partono.</p>
+        <p className="text-[12px] text-warn">WhatsApp: serve l&apos;integrazione configurata in Impostazioni. Meta accetta testo libero solo entro 24 ore dall&apos;ultimo messaggio del contatto; fuori finestra il promemoria non parte e l&apos;errore resta nel registro.</p>
       )}
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="secondary" size="sm" icon={<Plus className="w-3.5 h-3.5" />}

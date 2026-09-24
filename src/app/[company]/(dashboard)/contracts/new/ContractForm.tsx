@@ -11,7 +11,11 @@ import { formatCurrency } from "@/lib/utils";
 interface Client  { id: string; name: string; company: string | null }
 interface Product { id: string; name: string; type: string; basePrice: number }
 
-interface Props { clients: Client[]; products: Product[] }
+interface Props {
+  clients: Client[];
+  products: Product[];
+  defaults?: { clientId?: string; productId?: string; amount?: string; opportunityId?: string };
+}
 
 type ContractType = "RECURRING" | "INSTALLMENT" | "ONE_SHOT";
 
@@ -29,12 +33,14 @@ const TYPE_TABS: { key: ContractType; label: string; desc: string }[] = [
   { key: "ONE_SHOT",    label: "Una Tantum",   desc: "Pagamento unico, eventualmente con deposito" },
 ];
 
-export default function ContractForm({ clients, products }: Props) {
+export default function ContractForm({ clients, products, defaults }: Props) {
   const [pending, startTransition] = useTransition();
   const [type, setType] = useState<ContractType>("RECURRING");
   const [hasDeposit, setHasDeposit] = useState(false);
-  const [selectedProductId, setSelectedProductId] = useState("");
-  const [amount, setAmount] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState(defaults?.productId ?? "");
+  const [amount, setAmount] = useState(
+    defaults?.amount ?? (defaults?.productId ? String(products.find(p => p.id === defaults.productId)?.basePrice ?? "") : ""),
+  );
   const [installments, setInstallments] = useState("3");
   const router = useRouter();
 
@@ -80,7 +86,8 @@ export default function ContractForm({ clients, products }: Props) {
       {/* Cliente + Prodotto */}
       <section className="bg-white rounded-xl border border-gray-200 p-6 space-y-5">
         <h2 className="font-semibold text-gray-900">Dati contratto</h2>
-        <Select label="Cliente" name="clientId" required options={clientOptions} placeholder="Seleziona cliente..." />
+        {defaults?.opportunityId && <input type="hidden" name="opportunityId" value={defaults.opportunityId} />}
+        <Select label="Cliente" name="clientId" required options={clientOptions} placeholder="Seleziona cliente..." defaultValue={defaults?.clientId} />
         <Select
           label="Prodotto / Servizio"
           name="productId"
