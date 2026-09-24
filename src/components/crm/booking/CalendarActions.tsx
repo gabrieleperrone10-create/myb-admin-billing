@@ -140,6 +140,9 @@ export function ReminderRulesEditor({ slug, initial }: { slug: string; initial: 
           </div>
         );
       })}
+      <p className="text-[12px]" style={{ color: "var(--fg-3)" }}>
+        I promemoria partono una volta al giorno, alle 8:00: un promemoria &quot;1 ora prima&quot; di un appuntamento pomeridiano parte la mattina stessa. La conferma alla prenotazione è sempre immediata.
+      </p>
       {rules.some(r => r.channel === "WHATSAPP") && (
         <p className="text-[12px] text-warn">WhatsApp: serve l&apos;integrazione configurata in Impostazioni. Meta accetta testo libero solo entro 24 ore dall&apos;ultimo messaggio del contatto; fuori finestra il promemoria non parte e l&apos;errore resta nel registro.</p>
       )}

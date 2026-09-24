@@ -4,6 +4,6 @@
     { "path": "/api/cron/overdue-reminder",   "schedule": "0 9 * * *"   },
     { "path": "/api/cron/overdue-alert",      "schedule": "0 8 * * 1" },
     { "path": "/api/cron/contract-expiring",  "schedule": "15 8 * * *" },
-    { "path": "/api/cron/appointment-reminders", "schedule": "0 * * * *" }
+    { "path": "/api/cron/appointment-reminders", "schedule": "0 6 * * *" }
   ]
 }

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { getCompanySettings } from "@/app/actions/settings";
 import SettingsForm from "./SettingsForm";
-import { UserCog, Shield, PartyPopper, Zap } from "lucide-react";
+import { UserCog, Shield, PartyPopper, Zap, KanbanSquare, SlidersHorizontal, Tags, MessageCircle } from "lucide-react";
 
 export default async function SettingsPage({
   params,
@@ -106,6 +106,32 @@ export default async function SettingsPage({
             <p className="text-[12px]" style={{ color: "var(--fg-3)" }}>Configura accesso granulare</p>
           </div>
         </Link>
+      </div>
+
+      {/* CRM */}
+      <p className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: "var(--fg-3)" }}>Vendite (CRM)</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+        {[
+          { href: "/settings/pipelines", label: "Pipeline", desc: "Fasi del processo di vendita", Icon: KanbanSquare, color: "#f97316" },
+          { href: "/settings/crm/fields", label: "Campi personalizzati", desc: "Dati extra su contatti e opportunità", Icon: SlidersHorizontal, color: "#10b981" },
+          { href: "/settings/crm/tags", label: "Etichette", desc: "Etichette colorate dei contatti", Icon: Tags, color: "#4f7deb" },
+          { href: "/settings/integrations/whatsapp", label: "WhatsApp", desc: "Collega il numero WhatsApp Business", Icon: MessageCircle, color: "#22c55e" },
+        ].map(({ href, label, desc, Icon, color }) => (
+          <Link
+            key={href}
+            href={`/${slug}${href}`}
+            className="flex items-center gap-3 p-4 rounded-[var(--r-lg)] transition-colors"
+            style={{ backgroundColor: "var(--surface)", border: "1px solid var(--border)" }}
+          >
+            <div className="w-9 h-9 rounded-[10px] flex items-center justify-center shrink-0" style={{ backgroundColor: `${color}18` }}>
+              <Icon className="w-5 h-5" style={{ color }} />
+            </div>
+            <div>
+              <p className="text-[14px] font-semibold" style={{ color: "var(--fg)" }}>{label}</p>
+              <p className="text-[12px]" style={{ color: "var(--fg-3)" }}>{desc}</p>
+            </div>
+          </Link>
+        ))}
       </div>
 
       <SettingsForm settings={settings} />
