@@ -1,5 +1,6 @@
 export const dynamic = "force-dynamic";
 
+import { Suspense } from "react";
 import { requireCompany } from "@/lib/company";
 import { listCompanyMembers } from "@/lib/crm/members";
 import {
@@ -98,35 +99,42 @@ export default async function ContactsPage({
     tags: c.tags.map(ct => ({ id: ct.tag.id, name: ct.tag.name, color: ct.tag.color })),
   }));
 
+  const memberOptions = members.map(m => ({ userId: m.userId, name: m.name }));
+
   return (
     <div className="space-y-4 max-w-[1400px]">
-      <ContactsToolbar
-        slug={slug}
-        tab={query.tab}
-        tabCounts={tabCounts}
-        filters={query.filters}
-        columns={query.columns}
-        sort={query.sort}
-        dir={query.dir}
-        tags={tags}
-        members={members.map(m => ({ userId: m.userId, name: m.name }))}
-        customFieldDefs={customFieldDefs}
-        savedViews={savedViews}
-        sourceOptions={sourceOptions}
-      />
-      <ContactsTable
-        slug={slug}
-        rows={rows}
-        total={total}
-        page={query.page}
-        pageSize={query.pageSize}
-        sort={query.sort}
-        dir={query.dir}
-        columns={query.columns}
-        members={members.map(m => ({ userId: m.userId, name: m.name }))}
-        tags={tags}
-        customFieldDefs={customFieldDefs}
-      />
+      {/* useSearchParams() nei componenti client sotto richiede un boundary Suspense
+          (vedi clients/page.tsx): i dati sono gia' risolti qui sopra, quindi il
+          fallback in pratica non si vede mai, serve solo a soddisfare Next. */}
+      <Suspense fallback={null}>
+        <ContactsToolbar
+          slug={slug}
+          tab={query.tab}
+          tabCounts={tabCounts}
+          filters={query.filters}
+          columns={query.columns}
+          sort={query.sort}
+          dir={query.dir}
+          tags={tags}
+          members={memberOptions}
+          customFieldDefs={customFieldDefs}
+          savedViews={savedViews}
+          sourceOptions={sourceOptions}
+        />
+        <ContactsTable
+          slug={slug}
+          rows={rows}
+          total={total}
+          page={query.page}
+          pageSize={query.pageSize}
+          sort={query.sort}
+          dir={query.dir}
+          columns={query.columns}
+          members={memberOptions}
+          tags={tags}
+          customFieldDefs={customFieldDefs}
+        />
+      </Suspense>
     </div>
   );
 }
