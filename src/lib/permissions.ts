@@ -6,6 +6,7 @@ export const ALL_SECTIONS: AppSection[] = [
   "PRODUCTS", "PAYMENTS", "DEPOSITS", "ACADEMY", "SOP",
   "EVENTS", "AUTOMATIONS", "TEAM", "SETTINGS", "KNOWLEDGE", "USERS", "OBJECTIVES",
   "CONTACTS", "PIPELINES", "CONVERSATIONS", "FORMS", "CALENDARS",
+  "TASKS", "REPORTS",
 ];
 
 export type PermLevel = "NONE" | "VIEW" | "EDIT" | "FULL";

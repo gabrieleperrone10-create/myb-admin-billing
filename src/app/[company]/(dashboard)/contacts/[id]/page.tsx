@@ -11,6 +11,7 @@ import ConversationTab from "@/components/crm/contact/ConversationTab";
 import OpportunitiesTab from "@/components/crm/contact/OpportunitiesTab";
 import AppointmentsTab from "@/components/crm/contact/AppointmentsTab";
 import FormsTab from "@/components/crm/contact/FormsTab";
+import TasksTab from "@/components/crm/contact/TasksTab";
 import { ContactHeaderActions } from "@/components/crm/contact/ContactHeaderActions";
 
 /**
@@ -21,6 +22,7 @@ import { ContactHeaderActions } from "@/components/crm/contact/ContactHeaderActi
 const TABS = [
   { key: "overview", label: "Dettagli", Component: OverviewTab },
   { key: "activity", label: "Attività", Component: ActivityTab },
+  { key: "tasks", label: "Task", Component: TasksTab },
   { key: "conversation", label: "Conversazione", Component: ConversationTab },
   { key: "opportunities", label: "Opportunità", Component: OpportunitiesTab },
   { key: "appointments", label: "Appuntamenti", Component: AppointmentsTab },

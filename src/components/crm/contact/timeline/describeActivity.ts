@@ -4,6 +4,7 @@ import {
   UserPlus, UserCog, Repeat, Tag, StickyNote, Eye, FileText, Mail, MailOpen,
   MailWarning, MousePointerClick, MessageCircle, Calendar, CalendarClock,
   CalendarX, CalendarCheck, CalendarOff, Target, TrendingUp, TrendingDown, Link2,
+  ListTodo, CircleCheck,
 } from "lucide-react";
 import type { ActivityData } from "@/lib/crm/types";
 import { formatCurrency } from "@/lib/utils";
@@ -45,6 +46,8 @@ const ICONS: Record<ActivityType, ActivityIcon> = {
   OPPORTUNITY_WON: { Icon: TrendingUp, color: "var(--ok)" },
   OPPORTUNITY_LOST: { Icon: TrendingDown, color: "var(--danger)" },
   CLIENT_LINKED: { Icon: Link2, color: "var(--ok)" },
+  TASK_CREATED: { Icon: ListTodo, color: "#8b5cf6" },
+  TASK_COMPLETED: { Icon: CircleCheck, color: "var(--ok)" },
 };
 
 export function activityIcon(type: ActivityType): ActivityIcon {
@@ -166,6 +169,17 @@ export function describeActivity(
     }
     case "CLIENT_LINKED":
       return { title: "Collegato al cliente di fatturazione" };
+    case "TASK_CREATED": {
+      const d = data as ActivityData["TASK_CREATED"];
+      return {
+        title: `Task creato — ${d.title}`,
+        detail: d.dueAt ? `Scadenza ${new Date(d.dueAt).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Rome" })}` : undefined,
+      };
+    }
+    case "TASK_COMPLETED": {
+      const d = data as ActivityData["TASK_COMPLETED"];
+      return { title: `Task completato — ${d.title}` };
+    }
     default:
       return { title: type };
   }

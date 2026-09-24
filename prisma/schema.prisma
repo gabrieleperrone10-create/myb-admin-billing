@@ -218,6 +218,8 @@ model Company {
   calendarConnections     UserCalendarConnection[]
   reminderRules           ReminderRule[]
   notificationLogs        NotificationLog[]
+  tasks                   Task[]
+  adSpends                AdSpend[]
 }
 
 model CompanyMember {
@@ -950,6 +952,8 @@ enum AppSection {
   CONVERSATIONS
   FORMS
   CALENDARS
+  TASKS
+  REPORTS
 }
 
 enum PermissionLevel {
@@ -1070,6 +1074,8 @@ enum ActivityType {
   OPPORTUNITY_WON
   OPPORTUNITY_LOST
   CLIENT_LINKED
+  TASK_CREATED
+  TASK_COMPLETED
 }
 
 enum MessageChannel {
@@ -1169,6 +1175,7 @@ model Contact {
   formSubmissions FormSubmission[]
   pageViews       PageView[]
   appointments    Appointment[]
+  tasks           Task[]
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -1400,6 +1407,7 @@ model Opportunity {
   notes        Note[]
   activities   Activity[]
   appointments Appointment[]
+  tasks        Task[]
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -1631,4 +1639,79 @@ model NotificationLog {
 
   @@unique([appointmentId, kind, channel, offsetMinutes])
   @@index([companyId])
+}
+
+enum TaskType {
+  TODO
+  CALL
+  EMAIL
+  WHATSAPP
+  MEETING
+}
+
+enum TaskPriority {
+  LOW
+  NORMAL
+  HIGH
+}
+
+enum TaskStatus {
+  OPEN
+  DONE
+}
+
+/// Task e follow-up del team, collegati facoltativamente a un contatto e/o un'opportunita'.
+model Task {
+  id                String       @id @default(cuid())
+  title             String
+  description       String?
+  type              TaskType     @default(TODO)
+  priority          TaskPriority @default(NORMAL)
+  status            TaskStatus   @default(OPEN)
+  /// Scadenza (UTC). Con allDay la scadenza e' la giornata intera nel fuso dell'azienda.
+  dueAt             DateTime?
+  allDay            Boolean      @default(false)
+  assigneeUserId    String? // clerkUserId
+  createdByUserId   String?
+  contactId         String?
+  opportunityId     String?
+  completedAt       DateTime?
+  completedByUserId String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  contact     Contact?     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  opportunity Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status, dueAt])
+  @@index([companyId, assigneeUserId, status, dueAt])
+  @@index([contactId, status])
+  @@index([opportunityId])
+}
+
+/// Spesa pubblicitaria per calcolare CPL/CAC/ROAS. Inserita a mano o da CSV;
+/// source/campaign si confrontano con Contact.attribution (utm_source/utm_campaign).
+model AdSpend {
+  id              String   @id @default(cuid())
+  /// Canale come in utm_source (es. "facebook", "meta", "google")
+  source          String
+  /// Campagna come in utm_campaign; null = spesa del canale non ripartita
+  campaign        String?
+  periodStart     DateTime
+  periodEnd       DateTime
+  amount          Float
+  currency        String   @default("EUR")
+  notes           String?
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, periodStart])
+  @@index([companyId, source, campaign])
 }

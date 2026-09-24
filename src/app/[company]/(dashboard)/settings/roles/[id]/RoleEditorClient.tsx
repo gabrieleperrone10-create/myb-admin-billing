@@ -30,6 +30,8 @@ const SECTION_LABELS: Record<AppSection, string> = {
   CONVERSATIONS: "Conversazioni",
   FORMS:         "Form",
   CALENDARS:     "Calendari",
+  TASKS:         "Task & follow-up",
+  REPORTS:       "Report vendite",
 };
 
 const ALL_SECTIONS = Object.keys(SECTION_LABELS) as AppSection[];

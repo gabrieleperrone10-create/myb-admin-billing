@@ -9,7 +9,7 @@ import {
   Wallet, FileCheck, Settings, Search, Receipt, FileMinus,
   BookOpen, Zap, GraduationCap, CalendarDays, UsersRound, ScrollText,
   Shield, UserCog, User, ChevronDown, Trophy,
-  Contact, KanbanSquare, MessagesSquare, ClipboardList, CalendarClock,
+  Contact, KanbanSquare, MessagesSquare, ClipboardList, CalendarClock, ListTodo, BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
@@ -44,14 +44,18 @@ const SECTION_MAP: Record<string, AppSection> = {
   "/conversations":   "CONVERSATIONS",
   "/forms":           "FORMS",
   "/calendars":       "CALENDARS",
+  "/tasks":           "TASKS",
+  "/reports":         "REPORTS",
 };
 
 const vendite = [
+  { href: "/tasks",         label: "Task",          icon: ListTodo },
   { href: "/contacts",      label: "Contatti",      icon: Contact },
   { href: "/opportunities", label: "Opportunità",   icon: KanbanSquare },
   { href: "/conversations", label: "Conversazioni", icon: MessagesSquare },
   { href: "/forms",         label: "Form",          icon: ClipboardList },
   { href: "/calendars",     label: "Calendari",     icon: CalendarClock },
+  { href: "/reports",       label: "Report",        icon: BarChart3 },
 ];
 
 const amministrazione = [

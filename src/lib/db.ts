@@ -50,6 +50,7 @@ const TENANT_MODELS = new Set([
   "Message", "Pipeline", "PipelineStage", "Opportunity", "OpportunityStageChange", "Form",
   "FormSubmission", "PageView", "Calendar", "Availability", "Appointment",
   "UserCalendarConnection", "ReminderRule", "NotificationLog",
+  "Task", "AdSpend",
 ]);
 
 /** Operazioni il cui `where` va filtrato per azienda. */

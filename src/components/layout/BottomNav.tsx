@@ -8,7 +8,7 @@ import {
   Package, FileCheck, Wallet, CreditCard, Zap, BookOpen, FileMinus,
   GraduationCap, CalendarDays, UsersRound, ScrollText, Settings, X,
   Shield, UserCog, Trophy,
-  Contact, KanbanSquare, MessagesSquare, ClipboardList, CalendarClock,
+  Contact, KanbanSquare, MessagesSquare, ClipboardList, CalendarClock, ListTodo, BarChart3,
 } from "lucide-react";
 import { useCompanySlug } from "@/lib/useCompany";
 import { companyPath, stripCompany } from "@/lib/paths";
@@ -47,11 +47,13 @@ const MORE_SECTIONS = [
   {
     title: "Vendite",
     items: [
+      { href: "/tasks",         label: "Task",          icon: ListTodo,       section: "TASKS" as AppSection },
       { href: "/contacts",      label: "Contatti",      icon: Contact,        section: "CONTACTS" as AppSection },
       { href: "/opportunities", label: "Opportunità",   icon: KanbanSquare,   section: "PIPELINES" as AppSection },
       { href: "/conversations", label: "Conversazioni", icon: MessagesSquare, section: "CONVERSATIONS" as AppSection },
       { href: "/forms",         label: "Form",          icon: ClipboardList,  section: "FORMS" as AppSection },
       { href: "/calendars",     label: "Calendari",     icon: CalendarClock,  section: "CALENDARS" as AppSection },
+      { href: "/reports",       label: "Report",        icon: BarChart3,      section: "REPORTS" as AppSection },
     ],
   },
   {

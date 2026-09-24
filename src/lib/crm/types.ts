@@ -54,6 +54,8 @@ export type ActivityData = {
   OPPORTUNITY_WON: { opportunityId: string; name: string; value: number };
   OPPORTUNITY_LOST: { opportunityId: string; name: string; reason?: string };
   CLIENT_LINKED: { clientId: string; backfill?: boolean };
+  TASK_CREATED: { taskId: string; title: string; dueAt?: string; assigneeUserId?: string };
+  TASK_COMPLETED: { taskId: string; title: string };
 };
 
 // Garantisce che ogni valore dell'enum Prisma abbia una forma qui sopra.
@@ -88,6 +90,8 @@ export const ACTIVITY_LABEL: Record<ActivityType, string> = {
   OPPORTUNITY_WON: "Opportunità vinta",
   OPPORTUNITY_LOST: "Opportunità persa",
   CLIENT_LINKED: "Collegato a cliente di fatturazione",
+  TASK_CREATED: "Task creato",
+  TASK_COMPLETED: "Task completato",
 };
 
 // ─── Campi (custom field e form) ───────────────────────────────────────────
