@@ -47,6 +47,43 @@ try {
   t("create con companyId altrui bloccato", String(e).includes("[db]"), "eccezione [db]");
 }
 
+// 5b. CRM — stessi presidi sui modelli nuovi
+const nContacts = await real.contact.count();
+t("CRM: contatti visibili all'azienda vera", nContacts > 0, `${nContacts} contatti`);
+t("CRM: contatti invisibili ad altra azienda", (await fake.contact.count()) === 0);
+const c1 = await real.contact.findFirst({ select: { id: true } });
+t("CRM: findUnique contatto INVISIBILE ad altra azienda",
+  (await fake.contact.findUnique({ where: { id: c1!.id } })) === null);
+const upd = await fake.contact.updateMany({ where: { id: c1!.id }, data: { firstName: "HACKED" } });
+t("CRM: updateMany cross-azienda non tocca nulla", upd.count === 0, `${upd.count} righe`);
+
+// FK composite: anche scrivendo con un client "legittimo" della propria
+// azienda, un figlio non puo' puntare a un contatto di un'altra azienda.
+// Serve una seconda azienda reale: creata e rimossa qui (cascade).
+const other = await basePrisma.company.create({
+  data: { slug: `isolation-test-${Date.now()}`, name: "Isolation test" },
+});
+try {
+  const otherDb = companyDb(other.id);
+  try {
+    await otherDb.activity.create({ data: {
+      companyId: other.id, contactId: c1!.id, type: "NOTE_ADDED", data: {} } });
+    t("CRM: Activity verso contatto altrui bloccata dal DB", false, "la create e' passata!");
+  } catch (e) {
+    t("CRM: Activity verso contatto altrui bloccata dal DB", /foreign key|Foreign key/i.test(String(e)), "FK composita");
+  }
+  try {
+    await otherDb.opportunity.create({ data: {
+      companyId: other.id, contactId: c1!.id, name: "x",
+      pipelineId: "inesistente", stageId: "inesistente" } });
+    t("CRM: Opportunity verso contatto altrui bloccata", false, "la create e' passata!");
+  } catch {
+    t("CRM: Opportunity verso contatto altrui bloccata", true);
+  }
+} finally {
+  await basePrisma.company.delete({ where: { id: other.id } });
+}
+
 // 6. modello non-tenant resta globale
 const migrations = await basePrisma.$queryRaw<{c: bigint}[]>`select count(*)::int as c from "_prisma_migrations"`;
 t("client base non filtrato ancora utilizzabile", Number(migrations[0].c) > 0, `${migrations[0].c} migration`);
