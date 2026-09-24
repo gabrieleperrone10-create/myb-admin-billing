@@ -3,6 +3,8 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useCompanySlug } from "@/lib/useCompany";
+import { companyPath } from "@/lib/paths";
 
 type Period = "day" | "week" | "month" | "year" | "all" | "custom";
 
@@ -17,6 +19,7 @@ const PERIODS: { value: Period; label: string }[] = [
 
 export default function PeriodFilter() {
   const router = useRouter();
+  const slug = useCompanySlug();
   const sp = useSearchParams();
   const current = (sp.get("period") ?? "month") as Period;
   const [from, setFrom] = useState(sp.get("from") ?? "");
@@ -27,9 +30,9 @@ export default function PeriodFilter() {
       const params = new URLSearchParams({ period: "custom" });
       if (from) params.set("from", from);
       if (to)   params.set("to", to);
-      router.push(`/dashboard?${params.toString()}`);
+      router.push(companyPath(slug, `/dashboard?${params.toString()}`));
     } else {
-      router.push(`/dashboard?period=${p}`);
+      router.push(companyPath(slug, `/dashboard?period=${p}`));
     }
   }
 
@@ -37,7 +40,7 @@ export default function PeriodFilter() {
     const params = new URLSearchParams({ period: "custom" });
     if (from) params.set("from", from);
     if (to)   params.set("to", to);
-    router.push(`/dashboard?${params.toString()}`);
+    router.push(companyPath(slug, `/dashboard?${params.toString()}`));
   }
 
   const pill =
