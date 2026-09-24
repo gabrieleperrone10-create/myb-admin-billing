@@ -10,6 +10,8 @@ import { OpportunityFilters } from "@/components/crm/opportunities/OpportunityFi
 import { KanbanBoard } from "@/components/crm/opportunities/KanbanBoard";
 import { OpportunityListView } from "@/components/crm/opportunities/OpportunityListView";
 import type { OpportunityCardData } from "@/components/crm/opportunities/types";
+import { startOfDayInTz } from "@/lib/crm/tasks";
+import type { NextTaskSummary } from "@/components/crm/tasks/types";
 import type { Prisma } from "@/lib/db";
 
 export default async function OpportunitiesPage({
@@ -20,7 +22,7 @@ export default async function OpportunitiesPage({
   searchParams: Promise<{ pipeline?: string; owner?: string; status?: string; q?: string; view?: string; sort?: string; dir?: string }>;
 }) {
   const [{ company: slug }, sp] = await Promise.all([params, searchParams]);
-  const { db, companyId } = await requireCompany(slug);
+  const { db, companyId, company } = await requireCompany(slug);
 
   await ensureDefaultPipeline(db, companyId);
 
@@ -94,6 +96,28 @@ export default async function OpportunitiesPage({
     contact: { id: o.contact.id, name: contactDisplayName(o.contact), email: o.contact.email, companyName: o.contact.companyName },
   }));
 
+  // Prossimo task aperto per opportunità (agente Task), per il badge sulla card kanban.
+  const openOppIds = rows.filter(o => o.status === "OPEN").map(o => o.id);
+  const nextTasks = openOppIds.length
+    ? await db.task.findMany({
+        where: { opportunityId: { in: openOppIds }, status: "OPEN" },
+        orderBy: { dueAt: "asc" }, // NULLS LAST su Postgres: prima le scadenze reali
+        select: { id: true, title: true, type: true, dueAt: true, opportunityId: true },
+      })
+    : [];
+  const startOfTodayUtc = startOfDayInTz(new Date(), company.timezone).getTime();
+  const nextTaskByOpportunity: Record<string, NextTaskSummary> = {};
+  for (const t of nextTasks) {
+    if (!t.opportunityId || nextTaskByOpportunity[t.opportunityId]) continue; // gia' preso il piu' vicino
+    nextTaskByOpportunity[t.opportunityId] = {
+      id: t.id,
+      title: t.title,
+      type: t.type,
+      dueAt: t.dueAt ? t.dueAt.toISOString() : null,
+      overdue: !!t.dueAt && t.dueAt.getTime() < startOfTodayUtc,
+    };
+  }
+
   const view = sp.view === "list" ? "list" : "kanban";
 
   let listOpportunities = opportunities;
@@ -149,6 +173,7 @@ export default async function OpportunitiesPage({
           members={memberOptions}
           products={products}
           customFieldDefs={customFieldDefs}
+          nextTaskByOpportunity={nextTaskByOpportunity}
         />
       ) : (
         <Suspense fallback={null}>

@@ -11,6 +11,8 @@ import { OpportunityCard } from "./OpportunityCard";
 import { OpportunityDrawer } from "./OpportunityDrawer";
 import { WonDialog } from "./WonDialog";
 import { LostReasonDialog } from "./LostReasonDialog";
+import { FollowUpPrompt } from "@/components/crm/tasks/FollowUpPrompt";
+import type { NextTaskSummary } from "@/components/crm/tasks/types";
 import type { CustomFieldDefData, MemberData, OpportunityCardData, PipelineData, ProductData, StageData } from "./types";
 
 function groupByStage(stages: StageData[], opportunities: OpportunityCardData[]): Record<string, OpportunityCardData[]> {
@@ -25,7 +27,7 @@ function groupByStage(stages: StageData[], opportunities: OpportunityCardData[])
 }
 
 export function KanbanBoard({
-  pipelines, currentPipelineId, stages, opportunities, members, products, customFieldDefs,
+  pipelines, currentPipelineId, stages, opportunities, members, products, customFieldDefs, nextTaskByOpportunity = {},
 }: {
   pipelines: PipelineData[];
   currentPipelineId: string;
@@ -34,6 +36,8 @@ export function KanbanBoard({
   members: MemberData[];
   products: ProductData[];
   customFieldDefs: CustomFieldDefData[];
+  /** Prossimo task aperto per opportunità (agente Task), caricato dalla pagina server. */
+  nextTaskByOpportunity?: Record<string, NextTaskSummary | null>;
 }) {
   const slug = useCompanySlug();
   const router = useRouter();
@@ -52,8 +56,9 @@ export function KanbanBoard({
   const [drawerState, setDrawerState] = useState<{ open: boolean; opp?: OpportunityCardData | null; stageId?: string }>({ open: false });
   const [wonDialog, setWonDialog] = useState<{ id: string; name: string } | null>(null);
   const [lostPending, setLostPending] = useState<{ oppId: string; name: string; stageId: string; beforeId: string | null; afterId: string | null; snapshot: typeof columns } | null>(null);
+  const [followUpPrompt, setFollowUpPrompt] = useState<{ id: string; name: string } | null>(null);
 
-  async function applyMove(oppId: string, stageId: string, beforeId: string | null, afterId: string | null, lostReason: string | null, snapshot: typeof columns) {
+  async function applyMove(oppId: string, stageId: string, beforeId: string | null, afterId: string | null, lostReason: string | null, snapshot: typeof columns, stageChanged: boolean) {
     const res = await moveOpportunityAction(slug, oppId, { stageId, beforeId, afterId, lostReason });
     if (!res.ok) {
       setColumns(snapshot);
@@ -61,9 +66,12 @@ export function KanbanBoard({
       return;
     }
     router.refresh();
+    const opp = opportunities.find(o => o.id === oppId);
     if (res.data.status === "WON") {
-      const opp = opportunities.find(o => o.id === oppId);
       setWonDialog({ id: oppId, name: opp?.name ?? "Opportunità" });
+    } else if (stageChanged && res.data.status === "OPEN") {
+      // Follow-up: solo dopo un cambio di fase riuscito verso una fase aperta (non WON/LOST).
+      setFollowUpPrompt({ id: oppId, name: opp?.name ?? "Opportunità" });
     }
   }
 
@@ -94,7 +102,7 @@ export function KanbanBoard({
       return;
     }
 
-    void applyMove(draggableId, destination.droppableId, beforeId, afterId, null, snapshot);
+    void applyMove(draggableId, destination.droppableId, beforeId, afterId, null, snapshot, stageChanged);
   }
 
   const pipelineName = pipelines.find(p => p.id === currentPipelineId)?.name ?? "";
@@ -144,7 +152,7 @@ export function KanbanBoard({
                         <Draggable key={opp.id} draggableId={opp.id} index={index}>
                           {(dragProvided) => (
                             <div ref={dragProvided.innerRef} {...dragProvided.draggableProps} {...dragProvided.dragHandleProps}>
-                              <OpportunityCard opp={opp} members={members} onClick={() => setDrawerState({ open: true, opp })} />
+                              <OpportunityCard opp={opp} members={members} onClick={() => setDrawerState({ open: true, opp })} nextTask={nextTaskByOpportunity[opp.id] ?? null} />
                             </div>
                           )}
                         </Draggable>
@@ -185,8 +193,16 @@ export function KanbanBoard({
           onConfirm={(reason) => {
             const { oppId, stageId, beforeId, afterId, snapshot } = lostPending;
             setLostPending(null);
-            void applyMove(oppId, stageId, beforeId, afterId, reason, snapshot);
+            void applyMove(oppId, stageId, beforeId, afterId, reason, snapshot, true);
           }}
+        />
+      )}
+
+      {followUpPrompt && (
+        <FollowUpPrompt
+          opportunityId={followUpPrompt.id}
+          opportunityName={followUpPrompt.name}
+          onDone={() => { setFollowUpPrompt(null); router.refresh(); }}
         />
       )}
     </div>
