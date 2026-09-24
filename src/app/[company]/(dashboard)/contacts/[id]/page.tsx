@@ -4,12 +4,14 @@ import { ArrowLeft, Mail, Phone, MessageCircle } from "lucide-react";
 import { requireCompany } from "@/lib/company";
 import { companyPath } from "@/lib/paths";
 import { contactDisplayName } from "@/lib/crm/contacts";
+import { listCompanyMembers } from "@/lib/crm/members";
 import OverviewTab from "@/components/crm/contact/OverviewTab";
 import ActivityTab from "@/components/crm/contact/ActivityTab";
 import ConversationTab from "@/components/crm/contact/ConversationTab";
 import OpportunitiesTab from "@/components/crm/contact/OpportunitiesTab";
 import AppointmentsTab from "@/components/crm/contact/AppointmentsTab";
 import FormsTab from "@/components/crm/contact/FormsTab";
+import { ContactHeaderActions } from "@/components/crm/contact/ContactHeaderActions";
 
 /**
  * Scheda contatto: header + tab. La tab attiva e' in ?tab= (link condivisibili,
@@ -36,16 +38,20 @@ export default async function ContactPage({
   searchParams,
 }: {
   params: Promise<{ company: string; id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [{ company: slug, id }, { tab }] = await Promise.all([params, searchParams]);
-  const { db } = await requireCompany(slug);
-  const contact = await db.contact.findUnique({
-    where: { id },
-    include: { tags: { include: { tag: true } } },
-  });
+  const [{ company: slug, id }, sp] = await Promise.all([params, searchParams]);
+  const { db, companyId } = await requireCompany(slug);
+  const [contact, members] = await Promise.all([
+    db.contact.findUnique({
+      where: { id },
+      include: { tags: { include: { tag: true } }, client: { select: { id: true } } },
+    }),
+    listCompanyMembers(companyId),
+  ]);
   if (!contact) notFound();
 
+  const tab = typeof sp.tab === "string" ? sp.tab : undefined;
   const active = TABS.find(t => t.key === tab) ?? TABS[0];
   const lc = LIFECYCLE[contact.lifecycle];
   const name = contactDisplayName(contact);
@@ -97,6 +103,14 @@ export default async function ContactPage({
             )}
           </div>
         </div>
+        <ContactHeaderActions
+          slug={slug}
+          contactId={contact.id}
+          lifecycle={contact.lifecycle}
+          ownerUserId={contact.ownerUserId}
+          members={members.map(m => ({ userId: m.userId, name: m.name }))}
+          clientId={contact.client?.id ?? null}
+        />
       </div>
 
       <nav className="flex gap-1 overflow-x-auto" style={{ borderBottom: "1px solid var(--border)" }}>
@@ -124,7 +138,7 @@ export default async function ContactPage({
         })}
       </nav>
 
-      <active.Component slug={slug} contactId={contact.id} />
+      <active.Component slug={slug} contactId={contact.id} searchParams={sp} />
     </div>
   );
 }
