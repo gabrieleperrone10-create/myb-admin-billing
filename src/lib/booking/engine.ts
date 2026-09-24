@@ -2,6 +2,7 @@ import "server-only";
 import { Prisma, type Appointment, type AppointmentStatus, type Availability, type Calendar, type Company, type Contact } from "@prisma/client";
 import type { CompanyDb } from "@/lib/db";
 import { upsertContact, contactDisplayName, normalizeEmail } from "@/lib/crm/contacts";
+import { identifyVisitor } from "@/lib/crm/tracking/identify";
 import { logActivity } from "@/lib/crm/activity";
 import { createOpportunity } from "@/lib/crm/opportunities";
 import { coerceFieldValue, type CustomFieldValue, type CustomFieldValues } from "@/lib/crm/customFields";
@@ -303,6 +304,12 @@ export async function bookAppointment(
     data: { appointmentId: appt.id, calendarName: cal.name, startTime: appt.startTime.toISOString() },
     actorUserId: input.actorUserId,
   }).catch(e => console.error("[booking] attivita':", e));
+
+  // Visite anonime (t.js) di chi ha appena prenotato: entrano nella cronologia.
+  if (input.visitorId) {
+    await identifyVisitor(db, companyId, input.visitorId, contact.id)
+      .catch(e => console.error("[booking] identifyVisitor:", e));
+  }
 
   if (input.notifyContact !== false && appt.guestEmail) {
     await notifyGuest(db, { company, appointment: appt, calendar: cal, kind: "CONFIRMATION", baseUrl: input.baseUrl });

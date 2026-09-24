@@ -28,11 +28,12 @@ const SCRIPT = `(function () {
   var KEY = script && script.getAttribute("data-key");
   if (!KEY) return;
 
-  var TRACK_URL = (function () {
+  var APP_ORIGIN = (function () {
     var src = (script && script.src) || "";
     var i = src.indexOf("/t.js");
-    return (i > -1 ? src.slice(0, i) : "") + "/api/public/track";
+    return i > -1 ? src.slice(0, i) : "";
   })();
+  var TRACK_URL = APP_ORIGIN + "/api/public/track";
 
   function dnt() {
     return (
@@ -118,19 +119,26 @@ const SCRIPT = `(function () {
   patchHistory("replaceState");
   win.addEventListener("popstate", send);
 
+  // Iframe e link verso form (/f/) e prenotazioni (/book/) dell'app: ricevono
+  // vid + UTM nell'URL, perche' quelle pagine stanno sul dominio dell'app e non
+  // possono leggere il cookie first-party di questo sito. Solo URL dell'origin
+  // da cui e' stato caricato t.js: un "/book/" del sito ospite non si tocca.
   function decorateIframes() {
     var utm = currentUtm();
-    var iframes = doc.querySelectorAll('iframe[src*="/f/"]');
-    for (var i = 0; i < iframes.length; i++) {
-      var el = iframes[i];
+    var els = doc.querySelectorAll('iframe[src*="/f/"], iframe[src*="/book/"], a[href*="/f/"], a[href*="/book/"]');
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
       if (el.getAttribute("data-myb-decorated") === "1") continue;
+      var attr = el.tagName === "A" ? "href" : "src";
       try {
-        var u = new URL(el.getAttribute("src"), win.location.href);
+        var u = new URL(el.getAttribute(attr), win.location.href);
+        if (APP_ORIGIN && u.origin !== new URL(APP_ORIGIN, win.location.href).origin) continue;
+        if (u.pathname.indexOf("/f/") !== 0 && u.pathname.indexOf("/book/") !== 0) continue;
         if (vid && !u.searchParams.get("vid")) u.searchParams.set("vid", vid);
         Object.keys(utm).forEach(function (k) {
           if (!u.searchParams.get(k)) u.searchParams.set(k, utm[k]);
         });
-        el.setAttribute("src", u.toString());
+        el.setAttribute(attr, u.toString());
         el.setAttribute("data-myb-decorated", "1");
       } catch (e) {}
     }

@@ -35,9 +35,11 @@ function readVisitorId(): string | null {
     const sp = new URLSearchParams(window.location.search);
     const fromUrl = sp.get("vid");
     if (fromUrl) return fromUrl.slice(0, 100);
-    const m = document.cookie.match(/(?:^|;\s*)(?:_crm_vid|crm_vid)=([^;]+)/);
+    // Stesso identificativo di t.js (cookie/localStorage "myb_vid"): presente
+    // quando la pagina di booking e' visitata sul dominio dove gira t.js.
+    const m = document.cookie.match(/(?:^|;\s*)myb_vid=([^;]+)/);
     if (m) return decodeURIComponent(m[1]).slice(0, 100);
-    return localStorage.getItem("crm_vid");
+    return localStorage.getItem("myb_vid");
   } catch {
     return null;
   }
