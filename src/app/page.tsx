@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { SignOutButton } from "@clerk/nextjs";
 import { listMyCompanies } from "@/lib/company";
 import { basePrisma } from "@/lib/db";
 
@@ -33,8 +34,16 @@ export default async function RootPage() {
       <div className="flex h-screen flex-col items-center justify-center gap-2 text-center px-4" style={{ backgroundColor: "var(--bg)" }}>
         <p className="text-[15px] font-semibold" style={{ color: "var(--fg)" }}>Nessuna azienda</p>
         <p className="text-[13px]" style={{ color: "var(--fg-3)" }}>
-          Il tuo account non e' ancora collegato a nessuna azienda. Contatta chi amministra il gestionale.
+          Il tuo account non è ancora collegato a nessuna azienda. Contatta chi amministra il gestionale.
         </p>
+        <p className="text-[12px] max-w-sm" style={{ color: "var(--fg-3)" }}>
+          Se hai già un accesso, esci e rientra con lo stesso metodo di sempre (es. Google) o con l&apos;email con cui sei stato invitato.
+        </p>
+        <SignOutButton redirectUrl="/sign-in">
+          <button className="mt-3 px-4 py-2 rounded-[var(--r-md)] text-[13px] font-medium" style={{ border: "1px solid var(--border)", color: "var(--fg)" }}>
+            Esci
+          </button>
+        </SignOutButton>
       </div>
     );
   }
