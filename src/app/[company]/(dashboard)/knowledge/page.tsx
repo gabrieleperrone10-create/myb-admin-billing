@@ -103,8 +103,19 @@ export default function KnowledgePage() {
       {/* ── 1. Struttura entità ─────────────────────────────────────────────── */}
       <Section title="Struttura del gestionale" icon="🏗️">
         <p className="text-[13px] mb-4" style={{ color: "var(--fg-2)" }}>
-          Il gestionale è diviso in due macro-aree: <strong>Operazioni</strong> (fatturazione, clienti, finanza) e <strong>Team & Formazione</strong> (academy, SOP, eventi).
+          Il gestionale è diviso in tre macro-aree: <strong>Vendite</strong> (CRM: lead, pipeline, conversazioni, form, calendari, task, report), <strong>Operazioni</strong> (fatturazione, clienti, finanza) e <strong>Team & Formazione</strong> (academy, SOP, eventi).
         </p>
+
+        <p className="text-[11px] font-mono font-semibold uppercase mb-2" style={{ color: "var(--fg-3)", letterSpacing: "0.1em" }}>Vendite (CRM)</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+          <Entity name="Contatti" color="#f97316" desc="Lista unica di Lead e Clienti con campi personalizzati, etichette, responsabile e assegnatari. Ogni cliente di fatturazione ha il suo contatto." links={["Opportunità", "Conversazioni", "Task", "Clienti"]} />
+          <Entity name="Opportunità" color="#8b5cf6" desc="Trattative nelle pipeline (fasi configurabili) in vista kanban o lista. 'Vinta' crea il cliente di fatturazione e porta al contratto precompilato." links={["Contratti"]} />
+          <Entity name="Conversazioni" color="#22c55e" desc="Casella unica email + WhatsApp. Le risposte dei clienti tornano nel thread del contatto." links={["Contatti"]} />
+          <Entity name="Form" color="#4f7deb" desc="Form costruiti nel gestionale, pubblici o incorporati nei siti. Ogni invio crea/aggiorna il contatto, applica etichette e può creare un'opportunità." links={["Contatti", "Opportunità"]} />
+          <Entity name="Calendari" color="#06b6d4" desc="Pagine di prenotazione pubbliche con disponibilità, Google Calendar/Meet e promemoria." links={["Contatti"]} />
+          <Entity name="Task" color="#a855f7" desc="Attività e follow-up con scadenza, assegnatario e priorità, collegati a contatti e opportunità." links={["Contatti", "Opportunità"]} />
+          <Entity name="Report" color="#3b9e6a" desc="Imbuto per fase, attribuzione per fonte/campagna, ROAS/CPL/CAC sull'incassato reale, team e appuntamenti." links={[]} />
+        </div>
 
         <p className="text-[11px] font-mono font-semibold uppercase mb-2" style={{ color: "var(--fg-3)", letterSpacing: "0.1em" }}>Operazioni</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
@@ -127,6 +138,81 @@ export default function KnowledgePage() {
           <Entity name="SOP" color="#4f7deb" desc="Procedure operative in rich text. Organizzate per cartelle e tag, con AI assistant." links={["Team"]} />
           <Entity name="Eventi" color="#8b5cf6" desc="Live, workshop, webinar. RSVP, ricorrenze, link Google Calendar." links={["Team"]} />
         </div>
+      </Section>
+
+
+      {/* ── Vendite: flusso ─────────────────────────────────────────────────── */}
+      <Section title="Flusso operativo — Vendite (CRM)" icon="🚀">
+        <p className="text-[13px] mb-4" style={{ color: "var(--fg-3)" }}>
+          Dal primo contatto all&apos;incasso, tutto nello stesso posto: per questo i report possono calcolare il ROAS sui soldi davvero incassati.
+        </p>
+        <Step step={1} title="Il lead entra" desc="Da un form (pagina pubblica o incorporato nel sito), da una prenotazione, da un messaggio WhatsApp o email, da import CSV o a mano (Contatti → Nuovo contatto). Se email o telefono esistono già non si crea un duplicato." />
+        <Step step={2} title="Assegna il contatto" desc="Scheda contatto → Responsabile e 'Assegnato a' (anche più persone). Dalla lista: seleziona i contatti → 'Assegna a…'. Chi ha visibilità 'Solo assegnati' vede solo i propri." />
+        <Step step={3} title="Crea l'opportunità" desc="Opportunità → Nuova, oppure automaticamente dal form o dal calendario se configurato. Sposta la card tra le fasi con il drag & drop." />
+        <Step step={4} title="Pianifica il follow-up" desc="Dopo ogni cambio di fase il kanban propone un follow-up (domani / 3 giorni / 1 settimana). Dalla scheda contatto: 'Follow-up rapido'." />
+        <Step step={5} title="Parla con il cliente" desc="Tab Conversazione della scheda o Vendite → Conversazioni: email e WhatsApp nello stesso thread, con stato di consegna/lettura e aperture/click." />
+        <Step step={6} title="Chiudi" desc="Sposta l'opportunità in 'Vinto' → 'Crea cliente e vai al contratto': il cliente di fatturazione viene creato e il contratto è precompilato con prodotto e importo." />
+        <Step step={7} title="Misura" desc="Vendite → Report: imbuto, attribuzione per campagna e ROAS. Inserisci la spesa pubblicitaria in Report → Spesa ads (a mano o da CSV)." />
+      </Section>
+
+      {/* ── Form, tracciamento, prenotazioni ────────────────────────────────── */}
+      <Section title="Form, tracciamento e prenotazioni" icon="🧲">
+        <div className="space-y-0">
+          <Kv label="Crea un form"        value="Vendite → Form → Nuovo. Ogni campo si collega a un dato del contatto (nome, email, telefono…) o a un campo personalizzato. Serve almeno email o telefono." />
+          <Kv label="Dopo l'invio"        value="Messaggio di conferma o redirect; etichette automatiche; opportunità nella pipeline/fase scelta; responsabile predefinito." />
+          <Kv label="Pubblicare"          value="Tab Condividi: link pubblico /f/…, codice iframe da incollare nel sito (si ridimensiona da solo)." />
+          <Kv label="Tracciamento visite" value="Vendite → Form → sezione Tracciamento: incolla lo script t.js nel sito. Le pagine visitate da un visitatore anonimo compaiono nella cronologia del contatto quando compila un form o prenota. Rispetta Do Not Track." />
+          <Kv label="Attribuzione"        value="UTM (utm_source, utm_campaign…), fbclid e gclid del primo contatto vengono salvati sul contatto e usati dai report." />
+          <Kv label="Calendari"           value="Vendite → Calendari: durata, disponibilità settimanale, anticipo minimo/massimo, buffer, domande extra, pipeline/etichette da applicare. Link pubblico /book/<azienda>/<calendario>." />
+          <Kv label="Google Calendar"     value="Ogni utente collega il proprio Google Calendar: gli impegni bloccano gli slot e le prenotazioni creano l'evento con link Meet." />
+          <Kv label="Doppie prenotazioni" value="Impossibili: lo stesso host non può avere due appuntamenti sovrapposti (controllo a livello di database)." />
+          <Kv label="Gestione cliente"    value="Nell'email di conferma il cliente ha il link per annullare o spostare l'appuntamento." />
+        </div>
+      </Section>
+
+      {/* ── Conversazioni ───────────────────────────────────────────────────── */}
+      <Section title="Conversazioni: email e WhatsApp" icon="💬">
+        <div className="space-y-0">
+          <Kv label="Email"              value="Dalla scheda contatto o dalla casella unica. Parte dal dominio dell'azienda (se collegato) e le risposte del cliente tornano nel thread." />
+          <Kv label="Aperture e click"   value="Registrati nella cronologia del contatto (serve il tracciamento attivo sul dominio email)." />
+          <Kv label="WhatsApp"           value="Ogni azienda collega il proprio numero (Impostazioni → WhatsApp, API ufficiale Meta). I messaggi in arrivo creano o aggiornano il contatto." />
+          <Kv label="Regola 24 ore"      value="Entro 24 ore dall'ultimo messaggio del cliente si scrive liberamente (gratis). Oltre, o per scrivere per primi, solo template approvati da Meta (a pagamento)." />
+          <Kv label="Opt-out"            value="Nella scheda contatto: se il contatto non vuole email o WhatsApp l'invio viene bloccato." />
+          <Kv label="Non letti"          value="Badge nel menu Conversazioni e nella tab del contatto; si azzerano aprendo la conversazione." />
+        </div>
+      </Section>
+
+      {/* ── Task ────────────────────────────────────────────────────────────── */}
+      <Section title="Task e follow-up" icon="✅">
+        <div className="space-y-0">
+          <Kv label="Le mie attività"   value="Vendite → Task: in ritardo, oggi, prossimi 7 giorni, più avanti, senza scadenza. Filtri per assegnatario (Miei / Tutti / membro), tipo e priorità." />
+          <Kv label="Tipi"              value="Chiamata, Email, WhatsApp, Meeting, Da fare. Scadenza con o senza orario: con orario il task è in ritardo appena l'ora passa." />
+          <Kv label="Dove crearli"      value="Pagina Task, tab Task della scheda contatto, menu azioni della scheda, drawer dell'opportunità, proposta automatica dopo un cambio di fase." />
+          <Kv label="Badge"             value="Il numero accanto a 'Task' nel menu sono i tuoi task in ritardo o in scadenza oggi." />
+          <Kv label="Riepilogo email"   value="Ogni mattina alle 7:30 chi ha task in ritardo o in scadenza riceve un'email riepilogativa." />
+        </div>
+      </Section>
+
+      {/* ── Report ──────────────────────────────────────────────────────────── */}
+      <Section title="Report vendite e ROAS" icon="📈">
+        <div className="space-y-0">
+          <Kv label="Panoramica"        value="Lead, opportunità, vinte, tasso di vittoria, valore vinto, incassato, spesa ads, ROAS, CPL, CAC con confronto col periodo precedente." />
+          <Kv label="Imbuto"            value="Per pipeline: quante opportunità raggiungono ogni fase, conversione fase→fase, tempo medio per fase, motivi di perdita." />
+          <Kv label="Attribuzione"      value="Per fonte e campagna (first-touch, dagli UTM): lead, clienti, valore, incassato, CPL, CAC, ROAS. Esportabile in CSV." />
+          <Kv label="Incassato"         value="Fatture pagate dei contatti diventati clienti, al netto delle note di credito. ROAS = incassato / spesa." />
+          <Kv label="Pagamenti Stripe"  value="Nei report contano di default. Disattiva 'Includi pagamenti Stripe' per i funnel in cui Stripe è solo denaro di passaggio. La dashboard finanziaria continua a escluderli." />
+          <Kv label="Spesa ads"         value="Report → Spesa: a mano o da CSV (data inizio, data fine, fonte, campagna, importo). Una spesa a cavallo di due periodi viene ripartita in proporzione ai giorni." />
+          <Kv label="Dashboard"         value="La riga 'Vendite · ultimi 30 giorni' riassume lead, vinte, valore e ROAS." />
+        </div>
+      </Section>
+
+      {/* ── Dominio email ───────────────────────────────────────────────────── */}
+      <Section title="Dominio email dell'azienda" icon="✉️">
+        <Step step={1} title="Collega il dominio" desc="Impostazioni → Dominio email → inserisci il dominio (es. tuodominio.it). Spunta 'Ricevi le risposte nel CRM' per usare reply.tuodominio.it." />
+        <Step step={2} title="Aggiungi i record DNS" desc="Copia i record mostrati nel pannello DNS (Cloudflare: Proxy 'DNS only', nuvola grigia). Stanno su sottodomini dedicati: la posta aziendale non viene toccata." />
+        <Step step={3} title="Verifica" desc="Premi Verifica. La propagazione può richiedere da pochi minuti ad alcune ore; su Cloudflare una risposta negativa resta in cache fino a 30 minuti." />
+        <Step step={4} title="Imposta il mittente" desc="Nome e indirizzo (es. vendite@tuodominio.it). Fatture, promemoria e messaggi CRM partono da lì appena il dominio è verificato; fino ad allora resta il mittente attuale." />
+        <Tip text="Non inserire mai un record MX sul dominio principale (senza sottodominio): sostituirebbe la posta aziendale. La ricezione del CRM va solo su reply.tuodominio.it." color={C.warn} />
       </Section>
 
       {/* ── 2. Flusso fatturazione ──────────────────────────────────────────── */}
@@ -189,7 +275,7 @@ export default function KnowledgePage() {
           </div>
         </div>
 
-        <p className="text-[11px] font-mono font-semibold uppercase mb-2" style={{ color: "var(--fg-3)", letterSpacing: "0.1em" }}>Come usare l'AI assistant SOP</p>
+        <p className="text-[11px] font-mono font-semibold uppercase mb-2" style={{ color: "var(--fg-3)", letterSpacing: "0.1em" }}>Come usare l&apos;AI assistant SOP</p>
         <Step step={1} title="Scrivi le SOP e pubblicale" desc="Solo le SOP in stato 'Pubblica' vengono fornite come contesto all'AI." />
         <Step step={2} title="Apri il pannello AI" desc="Clicca il pulsante 'AI SOP' in basso a destra (su mobile si apre come bottom sheet)." />
         <Step step={3} title="Fai domande in linguaggio naturale" desc="L'AI conosce tutte le procedure e risponde con riferimenti e link diretti alle SOP pertinenti." />
@@ -315,7 +401,9 @@ export default function KnowledgePage() {
           <Kv label="Alert insolute"      value="Notifica istantanea quando una fattura passa in stato OVERDUE." />
           <Kv label="Report mensile"      value="Riepilogo mensile delle performance inviato via email a fine mese." />
           <Kv label="Fatture ricorrenti"  value="Generazione automatica delle fatture per tutti i tipi di contratto attivi. Gira ogni giorno alle 9:00. Dalla seconda rata in poi la fattura viene inviata subito al cliente (non resta in bozza)." />
-          <Kv label="Cron schedule"       value="Le automazioni girano come Vercel Cron Jobs alle 9:00 ogni giorno." />
+          <Kv label="Promemoria appuntamenti" value="Email (o WhatsApp entro 24 ore) ai clienti prima dell'appuntamento, secondo le regole impostate in Vendite → Calendari. Partono una volta al giorno alle 8:00." />
+          <Kv label="Riepilogo task"      value="Ogni mattina alle 7:30 email a chi ha task in ritardo o in scadenza oggi." />
+          <Kv label="Cron schedule"       value="Le automazioni girano come Vercel Cron Jobs una volta al giorno (piano Hobby): fatture 9:00, promemoria appuntamenti 8:00, riepilogo task 7:30." />
         </div>
       </Section>
 
@@ -369,6 +457,7 @@ export default function KnowledgePage() {
             { name: "Admin", color: "#f97316", desc: "Accesso FULL a tutto tranne la gestione degli Owner." },
             { name: "Manager", color: "#8b5cf6", desc: "EDIT su operazioni, VIEW su impostazioni/utenti." },
             { name: "Editor", color: "#4f7deb", desc: "EDIT solo su contenuti: Academy, SOP, Events, Knowledge." },
+            { name: "Venditore", color: "#14b8a6", desc: "CRM, task e calendario in modifica, clienti/contratti/fatture in lettura, tutto con visibilità 'Solo assegnati'." },
             { name: "Viewer", color: "#6b7280", desc: "VIEW su tutte le sezioni. Nessuna modifica possibile." },
           ].map(r => (
             <div key={r.name} className="p-3 rounded-[var(--r-md)] flex gap-2.5 items-start" style={{ border: "1px solid var(--border)" }}>
@@ -382,7 +471,7 @@ export default function KnowledgePage() {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[12px]">
           {[
-            { level: "NONE",  label: "Nessuno",    desc: "Sezione nascosta" },
+            { level: "NONE",  label: "Nessuno",    desc: "Sezione nascosta e non apribile" },
             { level: "VIEW",  label: "Visualizza", desc: "Solo lettura" },
             { level: "EDIT",  label: "Modifica",   desc: "Crea e modifica" },
             { level: "FULL",  label: "Completo",   desc: "Include eliminazione" },
@@ -395,10 +484,13 @@ export default function KnowledgePage() {
           ))}
         </div>
         <div className="mt-4 space-y-0">
-          <Kv label="Invita utenti"    value="Settings → Utenti → 'Invita utente'. Clerk invia un'email con link di registrazione." />
-          <Kv label="Assegna ruoli"    value="Dopo che l'utente si è registrato, clicca 'Ruoli' nella riga utente per aggiungere/rimuovere ruoli." />
-          <Kv label="Crea ruoli custom" value="Settings → Ruoli → 'Nuovo ruolo'. Poi clicca 'Modifica' per configurare i permessi sezione per sezione." />
-          <Kv label="Setup mode"       value="Finché nessun ruolo è assegnato, tutti gli utenti hanno accesso completo. Il sistema si attiva solo dopo la prima assegnazione." />
+          <Kv label="Aggiungi utenti"  value="Impostazioni → Utenti → 'Nuovo utente' con email e ruolo. Se l'email ha già un account (anche Google) viene riusato e aggiunto a questa azienda; altrimenti viene creato e riceve le istruzioni per la password." />
+          <Kv label="Più aziende"      value="Un utente vede solo le aziende di cui è membro; i ruoli valgono solo nell'azienda in cui sono assegnati." />
+          <Kv label="Assegna ruoli"    value="Clicca 'Ruoli' nella riga utente per aggiungere/rimuovere ruoli." />
+          <Kv label="Crea ruoli custom" value="Impostazioni → Ruoli → 'Nuovo ruolo': si apre subito l'editor. Un ruolo nuovo nasce senza permessi (segnalato 'nessun permesso impostato'): impostali e salva prima di assegnarlo." />
+          <Kv label="Visibilità dati"  value="Per ogni sezione del CRM e della fatturazione: 'Tutti i dati' oppure 'Solo assegnati' (contatti di cui l'utente è responsabile o assegnatario, e tutto ciò che vi è collegato: conversazioni, opportunità, task, appuntamenti, clienti, contratti, fatture)." />
+          <Kv label="Cosa vede"        value="Ciò che il ruolo non concede non compare: voci di menu, tab, pulsanti, blocchi della dashboard, risultati di ricerca. Dopo il login si arriva sulla prima sezione consentita." />
+          <Kv label="Senza ruolo"      value="Un membro senza nessun ruolo ha accesso completo. Assegna sempre un ruolo a chi non deve vedere tutto." />
           <Kv label="Multi-ruolo"      value="Un utente può avere più ruoli contemporaneamente. I permessi vengono sommati (si prende il livello più alto per ogni sezione)." />
         </div>
       </Section>
@@ -446,7 +538,10 @@ export default function KnowledgePage() {
         <Tip text="Dopo aver creato un contratto, vai subito nel dettaglio → 'Piano fatturazione' → 'Genera subito' per emettere la prima fattura senza aspettare il cron del giorno dopo." color={C.info} />
         <Tip text="Giorno di fatturazione: metti lo stesso giorno del mese della startDate (es. startDate=8 giugno → giorno 8). Le rate successive verranno auto-generate sempre quel giorno." />
         <Tip text="Aggiorna il Saldo CC ogni volta che controlli il conto corrente: il sistema calcola automaticamente il delta da quella data." color={C.info} />
-        <Tip text="Usa la ricerca globale (CMD+K) per trovare qualsiasi cosa: clienti, fatture, contratti, prodotti, spese, SOP, eventi, team." color={C.info} />
+        <Tip text="Usa la ricerca globale (CMD+K) per trovare qualsiasi cosa: contatti, clienti, fatture, contratti, prodotti, spese, SOP, eventi, team (solo nelle sezioni che il tuo ruolo può vedere)." color={C.info} />
+        <Tip text="Metti sempre gli UTM nei link delle campagne (utm_source, utm_campaign): senza, il report attribuzione non sa da quale campagna arriva il lead." color={C.info} />
+        <Tip text="Per un venditore usa il ruolo 'Venditore' (Impostazioni → Ruoli → Aggiungi ruolo Venditore) e assegnagli i contatti: vedrà solo i suoi." />
+        <Tip text="Dopo ogni cambio di fase pianifica il follow-up proposto dal kanban: le opportunità senza task sono quelle che si perdono." />
       </Section>
 
     </div>
