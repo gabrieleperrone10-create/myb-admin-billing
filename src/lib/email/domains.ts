@@ -66,6 +66,12 @@ function explain(err: { message?: string; name?: string } | null | undefined): s
   return err?.message || "Errore Resend";
 }
 
+/**
+ * Nome host completo di un record. Resend restituisce i nomi RELATIVI ALLA ZONA
+ * DNS (il dominio principale), anche per i sottodomini: per reply.esempio.it il
+ * record MX arriva come "reply", non come "@". Per questo la base e' sempre il
+ * dominio principale dell'azienda (zone), non il sottodominio.
+ */
 function fqdn(name: string, domain: string): string {
   const n = name.trim().replace(/\.$/, "").toLowerCase();
   if (!n || n === "@") return domain;
@@ -101,14 +107,22 @@ async function createOrAdopt(
   throw new Error(explain(error));
 }
 
-async function fetchRecords(id: string, domain: string, scope: DomainRecord["scope"]) {
+async function fetchRecords(id: string, zone: string, scope: DomainRecord["scope"]) {
   const { data, error } = await resend().domains.get(id);
   if (error || !data) throw new Error(explain(error));
+  // Il dominio Resend puo' essere un sottodominio (reply.esempio.it): se un suo
+  // record risultasse sul dominio principale, lo si riporta sul sottodominio.
+  // Un MX di ricezione sul dominio principale sostituirebbe la posta aziendale.
+  const own = data.name.toLowerCase();
+  const hostFor = (name: string) => {
+    const h = fqdn(name, zone);
+    return own !== zone && h === zone ? own : h;
+  };
   const records: DomainRecord[] = data.records.map(r => ({
     scope,
     record: r.record,
     type: r.type,
-    host: fqdn(r.name, domain),
+    host: hostFor(r.name),
     value: r.value,
     priority: "priority" in r ? r.priority : undefined,
     ttl: r.ttl,
@@ -166,7 +180,7 @@ export async function refreshCompanyEmailDomain(companyId: string, opts: { trigg
     data.emailDomainStatus = s.status;
     records.push(...s.records);
     if (meta.receivingId && company.inboundDomain) {
-      const r = await fetchRecords(meta.receivingId, company.inboundDomain, "receiving");
+      const r = await fetchRecords(meta.receivingId, company.emailDomain, "receiving");
       data.inboundDomainStatus = r.status;
       records.push(...r.records);
     }
