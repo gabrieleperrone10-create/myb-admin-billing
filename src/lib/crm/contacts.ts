@@ -106,6 +106,9 @@ export async function upsertContact(
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       const again = await find();
       if (again) return { contact: await mergeInto(db, again, { ...input, email, phone, whatsapp }, !!opts.untrusted), created: false };
+      // Esiste ma non e' visibile a questo utente ("Solo assegnati"): non si
+      // rivela di chi e', si dice solo che c'e'.
+      throw new Error("Esiste già un contatto con questa email o telefono, assegnato a un altro utente");
     }
     throw e;
   }

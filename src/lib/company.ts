@@ -4,7 +4,8 @@ import { auth } from "@clerk/nextjs/server";
 import { notFound, redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { basePrisma, companyDb, type CompanyDb } from "@/lib/db";
-import type { Company } from "@prisma/client";
+import type { AppSection, Company } from "@prisma/client";
+import { getUserAccess } from "@/lib/permissions";
 
 /**
  * Risoluzione dell'azienda corrente.
@@ -43,7 +44,22 @@ export type CompanyContext = {
   slug: string;
   userId: string;
   db: CompanyDb;
+  /** Sezioni in cui l'utente vede solo i dati assegnati (vuoto = tutto) */
+  ownSections: ReadonlySet<AppSection>;
 };
+
+/**
+ * Client db dell'utente: filtrato per azienda e, se un ruolo lo prevede, per
+ * visibilita' "Solo assegnati" (lib/visibility.ts). I permessi si leggono con
+ * un client senza visibilita' (i ruoli non sono dati "assegnati").
+ */
+async function userDb(companyId: string, userId: string) {
+  const { own } = await getUserAccess(companyDb(companyId), companyId, userId);
+  return {
+    db: own.size ? companyDb(companyId, { userId, own }) : companyDb(companyId),
+    ownSections: own as ReadonlySet<AppSection>,
+  };
+}
 
 /**
  * Reclamo di un'azienda orfana.
@@ -102,7 +118,7 @@ export const requireCompany = cache(async (slug: string): Promise<CompanyContext
     companyId: membership.companyId,
     slug:      membership.company.slug,
     userId,
-    db:        companyDb(membership.companyId),
+    ...(await userDb(membership.companyId, userId)),
   };
 });
 
@@ -164,7 +180,7 @@ export async function requireCompanyFromRequest(
       companyId: membership.companyId,
       slug:      membership.company.slug,
       userId,
-      db:        companyDb(membership.companyId),
+      ...(await userDb(membership.companyId, userId)),
     },
   };
 }

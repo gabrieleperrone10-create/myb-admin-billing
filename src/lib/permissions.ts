@@ -98,3 +98,35 @@ export async function getEffectivePermissions(
   if (own === 0) return fullPerms();
   return getUserPermissions(db, companyId, clerkUserId);
 }
+
+/**
+ * Permessi + visibilita' dei dati per l'utente in questa azienda.
+ * Stessa regola di getEffectivePermissions (senza ruoli: accesso pieno).
+ * Con piu' ruoli, per ogni sezione vince il piu' ampio: basta un ruolo che
+ * concede la sezione con "Tutti i dati" per vedere tutto; e' "Solo assegnati"
+ * solo se TUTTI i ruoli che la concedono sono limitati.
+ */
+export async function getUserAccess(
+  db: CompanyDb,
+  companyId: string,
+  clerkUserId: string,
+): Promise<{ perms: SectionPermissions; own: Set<AppSection> }> {
+  const userRoles = await db.appUserRole.findMany({
+    where: { companyId, clerkUserId },
+    include: { role: { include: { permissions: true } } },
+  });
+  if (userRoles.length === 0) return { perms: fullPerms(), own: new Set() };
+
+  const perms = emptyPerms();
+  const allScope = new Set<AppSection>();
+  const ownScope = new Set<AppSection>();
+  for (const { role } of userRoles) {
+    for (const p of role.permissions) {
+      perms[p.section] = higher(perms[p.section], p.level as PermLevel);
+      if (p.level === "NONE") continue;
+      (p.scope === "OWN" ? ownScope : allScope).add(p.section);
+    }
+  }
+  const own = new Set([...ownScope].filter(s => !allScope.has(s)));
+  return { perms, own };
+}

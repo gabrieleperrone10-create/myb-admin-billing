@@ -1,5 +1,6 @@
 import "server-only";
 import { PrismaClient, Prisma } from "@prisma/client";
+import { andWhere, visibilityFilter, type Visibility } from "@/lib/visibility";
 
 /**
  * Accesso al database con isolamento per azienda.
@@ -73,7 +74,7 @@ function withCompany(where: unknown, companyId: string): AnyArgs {
  * richiesta e non messo in cache per azienda, così un companyId stantio non può
  * sopravvivere fra una richiesta e l'altra.
  */
-export function companyDb(companyId: string) {
+export function companyDb(companyId: string, visibility?: Visibility) {
   return basePrisma
     .$extends({
       client: { $companyId: companyId },
@@ -83,17 +84,27 @@ export function companyDb(companyId: string) {
             if (!model || !TENANT_MODELS.has(model)) return query(args);
 
             const a = args as AnyArgs;
+            // Visibilita' "Solo assegnati" (lib/visibility.ts): solo per i client
+            // costruiti da requireCompany() con un utente limitato. Cron, webhook
+            // e pagine pubbliche passano da companyDb(companyId) senza visibilita'.
+            const vis = visibilityFilter(model, visibility);
 
             if (SCOPED_WHERE.has(operation)) {
               // extendedWhereUnique è GA in Prisma 5: un campo non-unique nel where
               // di findUnique/update/delete è ammesso, quindi non serve riscriverli
               // in findFirst. Prisma emette `WHERE id = ? AND "companyId" = ?`.
-              return query({ ...a, where: withCompany(a.where, companyId) } as typeof args);
+              const where = withCompany(a.where, companyId);
+              return query({ ...a, where: vis ? andWhere(where, vis) : where } as typeof args);
             }
 
             if (operation === "create") {
               const data = (a.data ?? {}) as AnyArgs;
               assertSameCompany(model, data.companyId, companyId);
+              // Chi vede solo i propri contatti ne diventa responsabile quando ne
+              // crea uno senza responsabile: altrimenti lo perderebbe di vista.
+              if (model === "Contact" && vis && data.ownerUserId == null && visibility) {
+                return query({ ...a, data: { ...data, companyId, ownerUserId: visibility.userId } } as typeof args);
+              }
               return query({ ...a, data: { ...data, companyId } } as typeof args);
             }
 

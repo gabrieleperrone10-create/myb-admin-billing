@@ -220,6 +220,7 @@ model Company {
   notificationLogs        NotificationLog[]
   tasks                   Task[]
   adSpends                AdSpend[]
+  contactAssignees        ContactAssignee[]
 }
 
 model CompanyMember {
@@ -982,11 +983,19 @@ model AppRole {
   @@index([companyId])
 }
 
+/// Quali record di una sezione vede il ruolo: tutti, o solo quelli assegnati
+/// all'utente (contatti di cui e' responsabile/assegnatario e dati collegati).
+enum DataScope {
+  ALL
+  OWN
+}
+
 model AppRolePermission {
   id      String          @id @default(cuid())
   roleId  String
   section AppSection
   level   PermissionLevel @default(NONE)
+  scope   DataScope       @default(ALL)
 
   role AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
@@ -1176,6 +1185,7 @@ model Contact {
   pageViews       PageView[]
   appointments    Appointment[]
   tasks           Task[]
+  assignees       ContactAssignee[]
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -1714,4 +1724,22 @@ model AdSpend {
 
   @@index([companyId, periodStart])
   @@index([companyId, source, campaign])
+}
+
+/// Utenti a cui e' assegnato un contatto oltre al responsabile (Contact.ownerUserId).
+/// Con visibilita' "Solo assegnati" un utente vede i contatti di cui e'
+/// responsabile O assegnatario.
+model ContactAssignee {
+  id        String   @id @default(cuid())
+  contactId String
+  userId    String // clerkUserId
+  createdAt DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, userId])
+  @@index([companyId, userId])
 }
