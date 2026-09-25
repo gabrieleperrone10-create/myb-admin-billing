@@ -4,16 +4,18 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { requireCompany } from "@/lib/company";
 import { companyPath } from "@/lib/paths";
+import { listCompanyMembers } from "@/lib/crm/members";
 import ImportWizard from "@/components/crm/contacts/ImportWizard";
 import type { CustomFieldDefLite } from "@/components/crm/contacts/types";
 
 export default async function ImportContactsPage({ params }: { params: Promise<{ company: string }> }) {
   const { company: slug } = await params;
-  const { db } = await requireCompany(slug);
+  const { db, companyId } = await requireCompany(slug);
 
-  const [customFieldDefsRaw, crmTagsRaw] = await Promise.all([
+  const [customFieldDefsRaw, crmTagsRaw, members] = await Promise.all([
     db.customFieldDef.findMany({ where: { entity: "CONTACT" }, orderBy: { order: "asc" } }),
     db.crmTag.findMany({ orderBy: { name: "asc" } }),
+    listCompanyMembers(companyId),
   ]);
 
   const customFieldDefs: CustomFieldDefLite[] = customFieldDefsRaw.map(d => ({
@@ -41,6 +43,7 @@ export default async function ImportContactsPage({ params }: { params: Promise<{
       <ImportWizard
         slug={slug}
         tags={crmTagsRaw.map(t => ({ id: t.id, name: t.name, color: t.color }))}
+        members={members.map(m => ({ userId: m.userId, name: m.name }))}
         customFieldDefs={customFieldDefs}
       />
     </div>

@@ -20,12 +20,13 @@ type FormState = {
   jobTitle: string;
   ownerUserId: string;
   tagIds: string[];
+  assigneeUserIds: string[];
   customFields: Record<string, string | boolean | string[]>;
 };
 
 const EMPTY: FormState = {
   firstName: "", lastName: "", email: "", phone: "", whatsapp: "",
-  companyName: "", jobTitle: "", ownerUserId: "", tagIds: [], customFields: {},
+  companyName: "", jobTitle: "", ownerUserId: "", tagIds: [], assigneeUserIds: [], customFields: {},
 };
 
 export default function NewContactForm({
@@ -57,6 +58,12 @@ export default function NewContactForm({
     set("tagIds", form.tagIds.includes(id) ? form.tagIds.filter(t => t !== id) : [...form.tagIds, id]);
   }
 
+  function toggleAssignee(userId: string) {
+    set("assigneeUserIds", form.assigneeUserIds.includes(userId)
+      ? form.assigneeUserIds.filter(u => u !== userId)
+      : [...form.assigneeUserIds, userId]);
+  }
+
   function setCustom(key: string, value: string | boolean | string[]) {
     setForm(f => ({ ...f, customFields: { ...f.customFields, [key]: value } }));
   }
@@ -73,7 +80,8 @@ export default function NewContactForm({
       const res = await createContact(slug, {
         firstName: form.firstName, lastName: form.lastName, email: form.email, phone: form.phone,
         whatsapp: form.whatsapp, companyName: form.companyName, jobTitle: form.jobTitle,
-        ownerUserId: form.ownerUserId, tagIds: form.tagIds, customFields: form.customFields,
+        ownerUserId: form.ownerUserId, tagIds: form.tagIds, assigneeUserIds: form.assigneeUserIds,
+        customFields: form.customFields,
       });
       if (!res.ok) {
         setError(res.error);
@@ -137,6 +145,27 @@ export default function NewContactForm({
                 }}
               >
                 {t.name}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {members.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-[13px] font-semibold" style={{ color: "var(--fg)" }}>Assegnato a</h2>
+          <div className="flex flex-wrap gap-1.5">
+            {members.map(m => (
+              <button
+                key={m.userId} type="button" onClick={() => toggleAssignee(m.userId)}
+                className="text-[12px] px-2.5 py-1 rounded-full border"
+                style={{
+                  backgroundColor: form.assigneeUserIds.includes(m.userId) ? "var(--info-soft)" : "transparent",
+                  borderColor: form.assigneeUserIds.includes(m.userId) ? "var(--info)" : "var(--border)",
+                  color: form.assigneeUserIds.includes(m.userId) ? "var(--info)" : "var(--fg-2)",
+                }}
+              >
+                {m.name}
               </button>
             ))}
           </div>

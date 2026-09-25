@@ -33,6 +33,7 @@ export default function FiltersPopover({
 
   const [tagIds, setTagIds] = useState<string[]>(filters.tagIds ?? []);
   const [ownerUserIds, setOwnerUserIds] = useState<string[]>(filters.ownerUserIds ?? []);
+  const [assigneeUserIds, setAssigneeUserIds] = useState<string[]>(filters.assigneeUserIds ?? []);
   const [source, setSource] = useState<string[]>(filters.source ?? []);
   const [createdFrom, setCreatedFrom] = useState(filters.createdFrom ?? "");
   const [createdTo, setCreatedTo] = useState(filters.createdTo ?? "");
@@ -49,6 +50,7 @@ export default function FiltersPopover({
   }, [open]);
 
   const activeCount = (filters.tagIds?.length ?? 0) + (filters.ownerUserIds?.length ?? 0)
+    + (filters.assigneeUserIds?.length ?? 0)
     + (filters.source?.length ?? 0) + (filters.createdFrom ? 1 : 0) + (filters.createdTo ? 1 : 0)
     + Object.keys(filters.custom ?? {}).length;
 
@@ -60,6 +62,7 @@ export default function FiltersPopover({
     const patch: Record<string, string | null> = {
       tags: tagIds.length ? tagIds.join(",") : null,
       owners: ownerUserIds.length ? ownerUserIds.join(",") : null,
+      assignees: assigneeUserIds.length ? assigneeUserIds.join(",") : null,
       source: source.length ? source.join(",") : null,
       createdFrom: createdFrom || null,
       createdTo: createdTo || null,
@@ -75,10 +78,10 @@ export default function FiltersPopover({
   }
 
   function reset() {
-    setTagIds([]); setOwnerUserIds([]); setSource([]); setCreatedFrom(""); setCreatedTo(""); setCustom({});
+    setTagIds([]); setOwnerUserIds([]); setAssigneeUserIds([]); setSource([]); setCreatedFrom(""); setCreatedTo(""); setCustom({});
     const params = new URLSearchParams(searchParams.toString());
     for (const key of Array.from(params.keys())) {
-      if (key.startsWith("cf_") || ["tags", "owners", "source", "createdFrom", "createdTo", "page"].includes(key)) params.delete(key);
+      if (key.startsWith("cf_") || ["tags", "owners", "assignees", "source", "createdFrom", "createdTo", "page"].includes(key)) params.delete(key);
     }
     router.push(`${pathname}?${params.toString()}`);
     setOpen(false);
@@ -141,6 +144,20 @@ export default function FiltersPopover({
                   </label>
                 ))}
               </div>
+            </FilterGroup>
+          )}
+
+          {members.length > 0 && (
+            <FilterGroup label="Assegnato a">
+              <div className="space-y-1">
+                {members.map(m => (
+                  <label key={m.userId} className="flex items-center gap-2 text-[12px]" style={{ color: "var(--fg-2)" }}>
+                    <input type="checkbox" checked={assigneeUserIds.includes(m.userId)} onChange={() => toggle(assigneeUserIds, setAssigneeUserIds, m.userId)} />
+                    {m.name}
+                  </label>
+                ))}
+              </div>
+              <p className="text-[10px] mt-1" style={{ color: "var(--fg-3)" }}>Responsabile o assegnatario</p>
             </FilterGroup>
           )}
 

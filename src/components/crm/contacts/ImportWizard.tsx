@@ -10,7 +10,7 @@ import { fieldKeyFromLabel } from "@/lib/crm/customFields";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/FormField";
 import { importContactsBatch, type ImportRowResult } from "@/app/actions/contacts";
-import type { TagOption, CustomFieldDefLite } from "./types";
+import type { MemberOption, TagOption, CustomFieldDefLite } from "./types";
 
 // Limite lato client, deve restare allineato a MAX_IMPORT_ROWS in src/app/actions/contacts.ts
 // (non importabile: un file "use server" puo' esportare solo funzioni async).
@@ -29,10 +29,11 @@ const LIFECYCLE_OPTIONS: { value: ContactLifecycle; label: string }[] = [
 ];
 
 export default function ImportWizard({
-  slug, tags, customFieldDefs,
+  slug, tags, members, customFieldDefs,
 }: {
   slug: string;
   tags: TagOption[];
+  members: MemberOption[];
   customFieldDefs: CustomFieldDefLite[];
 }) {
   const router = useRouter();
@@ -44,6 +45,7 @@ export default function ImportWizard({
   const [headers, setHeaders] = useState<string[]>([]);
   const [mapping, setMapping] = useState<Mapping>({});
   const [defaultTagIds, setDefaultTagIds] = useState<string[]>([]);
+  const [defaultAssigneeUserIds, setDefaultAssigneeUserIds] = useState<string[]>([]);
   const [defaultLifecycle, setDefaultLifecycle] = useState<ContactLifecycle>("LEAD");
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [results, setResults] = useState<ImportRowResult[]>([]);
@@ -94,7 +96,7 @@ export default function ImportWizard({
     const allResults: ImportRowResult[] = [];
     for (let i = 0; i < rows.length; i += BATCH_SIZE) {
       const batch = rows.slice(i, i + BATCH_SIZE);
-      const res = await importContactsBatch(slug, { rows: batch, mapping, defaultTagIds, defaultLifecycle });
+      const res = await importContactsBatch(slug, { rows: batch, mapping, defaultTagIds, defaultLifecycle, defaultAssigneeUserIds });
       if (res.ok) {
         for (const r of res.results) allResults.push({ ...r, row: r.row + i });
       }
@@ -216,6 +218,26 @@ export default function ImportWizard({
                 options={LIFECYCLE_OPTIONS}
               />
               <p className="text-[11px]" style={{ color: "var(--fg-3)" }}>Applicato ai contatti nuovi; quelli già esistenti mantengono/aggiornano il proprio stato</p>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <p className="text-[12px] font-medium" style={{ color: "var(--fg-2)" }}>Assegna i contatti importati a</p>
+              <div className="flex flex-wrap gap-1.5">
+                {members.map(m => (
+                  <button
+                    key={m.userId} type="button"
+                    onClick={() => setDefaultAssigneeUserIds(ids => ids.includes(m.userId) ? ids.filter(x => x !== m.userId) : [...ids, m.userId])}
+                    className="text-[12px] px-2.5 py-1 rounded-full border"
+                    style={{
+                      backgroundColor: defaultAssigneeUserIds.includes(m.userId) ? "var(--info-soft)" : "transparent",
+                      borderColor: defaultAssigneeUserIds.includes(m.userId) ? "var(--info)" : "var(--border)",
+                      color: defaultAssigneeUserIds.includes(m.userId) ? "var(--info)" : "var(--fg-2)",
+                    }}
+                  >
+                    {m.name}
+                  </button>
+                ))}
+                {members.length === 0 && <p className="text-[12px]" style={{ color: "var(--fg-3)" }}>Nessun membro</p>}
+              </div>
             </div>
           </div>
 

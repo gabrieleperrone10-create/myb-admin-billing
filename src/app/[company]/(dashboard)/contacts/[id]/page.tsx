@@ -29,6 +29,13 @@ const TABS = [
   { key: "forms", label: "Form", Component: FormsTab },
 ] as const;
 
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? "";
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
+  return (first + last).toUpperCase() || "?";
+}
+
 const LIFECYCLE: Record<string, { label: string; color: string }> = {
   LEAD: { label: "Lead", color: "#f97316" },
   CUSTOMER: { label: "Cliente", color: "#10b981" },
@@ -47,7 +54,7 @@ export default async function ContactPage({
   const [contact, members] = await Promise.all([
     db.contact.findUnique({
       where: { id },
-      include: { tags: { include: { tag: true } }, client: { select: { id: true } } },
+      include: { tags: { include: { tag: true } }, client: { select: { id: true } }, assignees: true },
     }),
     listCompanyMembers(companyId),
   ]);
@@ -57,6 +64,9 @@ export default async function ContactPage({
   const active = TABS.find(t => t.key === tab) ?? TABS[0];
   const lc = LIFECYCLE[contact.lifecycle];
   const name = contactDisplayName(contact);
+  const assigneeMembers = contact.assignees
+    .map(a => members.find(m => m.userId === a.userId))
+    .filter((m): m is (typeof members)[number] => !!m);
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -105,6 +115,19 @@ export default async function ContactPage({
             )}
           </div>
         </div>
+        {assigneeMembers.length > 0 && (
+          <div className="flex items-center -space-x-1.5 mt-1 shrink-0" title={`Assegnato a ${assigneeMembers.map(m => m.name).join(", ")}`}>
+            {assigneeMembers.map(m => (
+              <span
+                key={m.userId}
+                className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold"
+                style={{ backgroundColor: "var(--subtle)", color: "var(--fg-2)", border: "2px solid var(--surface)" }}
+              >
+                {initials(m.name)}
+              </span>
+            ))}
+          </div>
+        )}
         <ContactHeaderActions
           slug={slug}
           contactId={contact.id}

@@ -11,12 +11,12 @@ import {
 import { flexRender, type RowSelectionState } from "@tanstack/react-table";
 import {
   ArrowUp, ArrowDown, ArrowUpDown, ChevronLeft, ChevronRight,
-  Tag as TagIcon, UserCog, Repeat, Trash2, X, Mail, Phone,
+  Tag as TagIcon, UserCog, UserPlus, UserMinus, Repeat, Trash2, X, Mail, Phone,
 } from "lucide-react";
 import { companyPath } from "@/lib/paths";
 import { formatFieldValue } from "@/lib/crm/customFields";
 import {
-  bulkAddTag, bulkRemoveTag, bulkAssignOwner, bulkSetLifecycle, bulkDeleteContacts,
+  bulkAddTag, bulkRemoveTag, bulkAssignOwner, bulkAddAssignee, bulkRemoveAssignee, bulkSetLifecycle, bulkDeleteContacts,
 } from "@/app/actions/contacts";
 import { PAGE_SIZE_OPTIONS, SORT_OPTIONS, type ContactSortKey } from "@/lib/crm/contactQuery";
 import { buildHref } from "./url";
@@ -184,6 +184,27 @@ export default function ContactsTable({
             cell: ({ row }) => {
               const n = memberName(row.original.ownerUserId);
               return n ? <span className="text-[13px]" style={{ color: "var(--fg-2)" }}>{n}</span> : <Dash />;
+            },
+          }));
+          break;
+        case "assignees":
+          cols.push(columnHelper.display({
+            id: "assignees",
+            header: () => <span>Assegnati</span>,
+            cell: ({ row }) => {
+              const ids = Array.from(new Set([
+                ...(row.original.ownerUserId ? [row.original.ownerUserId] : []),
+                ...row.original.assigneeUserIds,
+              ]));
+              const names = ids.map(memberName).filter((n): n is string => !!n);
+              if (names.length === 0) return <Dash />;
+              return (
+                <div className="flex flex-wrap gap-1 max-w-[220px]">
+                  {names.map(n => (
+                    <span key={n} className="text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ backgroundColor: "var(--subtle)", color: "var(--fg-2)" }}>{n}</span>
+                  ))}
+                </div>
+              );
             },
           }));
           break;
@@ -412,7 +433,7 @@ function BulkActionsBar({
   onDone: () => void;
   onClear: () => void;
 }) {
-  const [openMenu, setOpenMenu] = useState<"tagAdd" | "tagRemove" | "owner" | "lifecycle" | null>(null);
+  const [openMenu, setOpenMenu] = useState<"tagAdd" | "tagRemove" | "owner" | "assigneeAdd" | "assigneeRemove" | "lifecycle" | null>(null);
 
   function run(fn: () => Promise<unknown>) {
     startTransition(async () => {
@@ -454,6 +475,20 @@ function BulkActionsBar({
         {members.map(m => (
           <button key={m.userId} type="button" disabled={pending} onClick={() => run(() => bulkAssignOwner(slug, selectedIds, m.userId))} className="w-full px-2.5 py-1.5 text-left hover:bg-black/5 rounded-[6px]">{m.name}</button>
         ))}
+      </BulkMenu>
+
+      <BulkMenu label="Assegna a…" icon={UserPlus} open={openMenu === "assigneeAdd"} onToggle={() => setOpenMenu(m => m === "assigneeAdd" ? null : "assigneeAdd")}>
+        {members.map(m => (
+          <button key={m.userId} type="button" disabled={pending} onClick={() => run(() => bulkAddAssignee(slug, selectedIds, m.userId))} className="w-full px-2.5 py-1.5 text-left hover:bg-black/5 rounded-[6px]">{m.name}</button>
+        ))}
+        {members.length === 0 && <p className="px-2.5 py-1.5 text-[12px]" style={{ color: "var(--fg-3)" }}>Nessun membro</p>}
+      </BulkMenu>
+
+      <BulkMenu label="Rimuovi assegnazione…" icon={UserMinus} open={openMenu === "assigneeRemove"} onToggle={() => setOpenMenu(m => m === "assigneeRemove" ? null : "assigneeRemove")}>
+        {members.map(m => (
+          <button key={m.userId} type="button" disabled={pending} onClick={() => run(() => bulkRemoveAssignee(slug, selectedIds, m.userId))} className="w-full px-2.5 py-1.5 text-left hover:bg-black/5 rounded-[6px]">{m.name}</button>
+        ))}
+        {members.length === 0 && <p className="px-2.5 py-1.5 text-[12px]" style={{ color: "var(--fg-3)" }}>Nessun membro</p>}
       </BulkMenu>
 
       <BulkMenu label="Cambia stato" icon={Repeat} open={openMenu === "lifecycle"} onToggle={() => setOpenMenu(m => m === "lifecycle" ? null : "lifecycle")}>
