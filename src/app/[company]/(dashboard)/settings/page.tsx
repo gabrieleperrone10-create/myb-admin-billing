@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { getCompanySettings } from "@/app/actions/settings";
 import SettingsForm from "./SettingsForm";
+import { requireCompany } from "@/lib/company";
 import { UserCog, Shield, PartyPopper, Zap, KanbanSquare, SlidersHorizontal, Tags, MessageCircle, AtSign } from "lucide-react";
 
 export default async function SettingsPage({
@@ -13,7 +14,8 @@ export default async function SettingsPage({
 }) {
   const { company: slug } = await params;
   const { onboarding } = await searchParams;
-  const settings = await getCompanySettings(slug);
+  const [settings, { perms }] = await Promise.all([getCompanySettings(slug), requireCompany(slug)]);
+  const canUsers = perms.USERS !== "NONE";
 
   return (
     <div className="max-w-[900px]">
@@ -79,7 +81,7 @@ export default async function SettingsPage({
       )}
 
       {/* Access management shortcuts */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+      {canUsers && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
         <Link
           href={`/${slug}/settings/users`}
           className="flex items-center gap-3 p-4 rounded-[var(--r-lg)] transition-colors"
@@ -106,7 +108,7 @@ export default async function SettingsPage({
             <p className="text-[12px]" style={{ color: "var(--fg-3)" }}>Configura accesso granulare</p>
           </div>
         </Link>
-      </div>
+      </div>}
 
       {/* CRM */}
       <p className="text-[11px] font-semibold uppercase tracking-wide mb-2" style={{ color: "var(--fg-3)" }}>Vendite (CRM)</p>

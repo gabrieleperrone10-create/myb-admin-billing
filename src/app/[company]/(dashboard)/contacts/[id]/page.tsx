@@ -4,6 +4,7 @@ import { ArrowLeft, Mail, Phone, MessageCircle } from "lucide-react";
 import { requireCompany } from "@/lib/company";
 import { companyPath } from "@/lib/paths";
 import { contactDisplayName } from "@/lib/crm/contacts";
+import { canEdit, canFull } from "@/lib/permissions";
 import { listCompanyMembers } from "@/lib/crm/members";
 import OverviewTab from "@/components/crm/contact/OverviewTab";
 import ActivityTab from "@/components/crm/contact/ActivityTab";
@@ -19,14 +20,15 @@ import { ContactHeaderActions } from "@/components/crm/contact/ContactHeaderActi
  * nessuno stato client) e viene renderizzata solo lei: ogni tab carica i propri
  * dati, quindi le altre non costano nulla.
  */
-const TABS = [
-  { key: "overview", label: "Dettagli", Component: OverviewTab },
-  { key: "activity", label: "Attività", Component: ActivityTab },
-  { key: "tasks", label: "Task", Component: TasksTab },
-  { key: "conversation", label: "Conversazione", Component: ConversationTab },
-  { key: "opportunities", label: "Opportunità", Component: OpportunitiesTab },
-  { key: "appointments", label: "Appuntamenti", Component: AppointmentsTab },
-  { key: "forms", label: "Form", Component: FormsTab },
+// `section`: la tab si vede solo se il ruolo concede quella sezione.
+const ALL_TABS = [
+  { key: "overview", label: "Dettagli", Component: OverviewTab, section: null },
+  { key: "activity", label: "Attività", Component: ActivityTab, section: null },
+  { key: "tasks", label: "Task", Component: TasksTab, section: "TASKS" },
+  { key: "conversation", label: "Conversazione", Component: ConversationTab, section: "CONVERSATIONS" },
+  { key: "opportunities", label: "Opportunità", Component: OpportunitiesTab, section: "PIPELINES" },
+  { key: "appointments", label: "Appuntamenti", Component: AppointmentsTab, section: "CALENDARS" },
+  { key: "forms", label: "Form", Component: FormsTab, section: "FORMS" },
 ] as const;
 
 function initials(name: string): string {
@@ -50,7 +52,8 @@ export default async function ContactPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const [{ company: slug, id }, sp] = await Promise.all([params, searchParams]);
-  const { db, companyId } = await requireCompany(slug);
+  const { db, companyId, perms } = await requireCompany(slug);
+  const TABS = ALL_TABS.filter(t => !t.section || perms[t.section] !== "NONE");
   const [contact, members] = await Promise.all([
     db.contact.findUnique({
       where: { id },
@@ -135,6 +138,12 @@ export default async function ContactPage({
           ownerUserId={contact.ownerUserId}
           members={members.map(m => ({ userId: m.userId, name: m.name }))}
           clientId={contact.client?.id ?? null}
+          can={{
+            viewClient: perms.CLIENTS !== "NONE",
+            createClient: canEdit(perms, "CLIENTS"),
+            tasks: canEdit(perms, "TASKS"),
+            delete: canFull(perms, "CONTACTS"),
+          }}
         />
       </div>
 

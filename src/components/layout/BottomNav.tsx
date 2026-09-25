@@ -98,10 +98,11 @@ export function BottomNav({ allowedSections = [] }: { allowedSections?: AppSecti
   const pathname = stripCompany(usePathname());
   const [moreOpen, setMoreOpen] = useState(false);
   const allowed = new Set(allowedSections);
-  const hasAny = allowedSections.length > 0;
 
   function isAllowed(href: string) {
-    if (!hasAny) return true;
+    // Il layout calcola i permessi con getUserAccess: chi non ha ruoli riceve
+    // gia' tutte le sezioni. Una lista vuota significa "nessuna sezione", non
+    // "tutte" (prima mostrava tutto il menu a chi non poteva aprire nulla).
     const section = SECTION_MAP[href];
     if (!section) return true;
     return allowed.has(section);

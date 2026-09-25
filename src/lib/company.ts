@@ -5,7 +5,7 @@ import { notFound, redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { basePrisma, companyDb, type CompanyDb } from "@/lib/db";
 import type { AppSection, Company } from "@prisma/client";
-import { getUserAccess } from "@/lib/permissions";
+import { getUserAccess, type SectionPermissions } from "@/lib/permissions";
 
 /**
  * Risoluzione dell'azienda corrente.
@@ -46,6 +46,8 @@ export type CompanyContext = {
   db: CompanyDb;
   /** Sezioni in cui l'utente vede solo i dati assegnati (vuoto = tutto) */
   ownSections: ReadonlySet<AppSection>;
+  /** Livello per sezione (stessa regola del menu: senza ruoli, tutto FULL) */
+  perms: SectionPermissions;
 };
 
 /**
@@ -54,10 +56,11 @@ export type CompanyContext = {
  * un client senza visibilita' (i ruoli non sono dati "assegnati").
  */
 async function userDb(companyId: string, userId: string) {
-  const { own } = await getUserAccess(companyDb(companyId), companyId, userId);
+  const { perms, own } = await getUserAccess(companyDb(companyId), companyId, userId);
   return {
     db: own.size ? companyDb(companyId, { userId, own }) : companyDb(companyId),
     ownSections: own as ReadonlySet<AppSection>,
+    perms,
   };
 }
 

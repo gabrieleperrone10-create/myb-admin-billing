@@ -3,7 +3,8 @@ import Link from "next/link";
 import { ShieldOff } from "lucide-react";
 import { requireCompany } from "@/lib/company";
 import { getUserAccess } from "@/lib/permissions";
-import { sectionForPath } from "@/lib/sections";
+import { redirect } from "next/navigation";
+import { firstAllowedPath, sectionForPath } from "@/lib/sections";
 import { companyPath } from "@/lib/paths";
 
 /**
@@ -26,16 +27,25 @@ export default async function DashboardTemplate({ children }: { children: React.
   const { perms } = await getUserAccess(ctx.db, ctx.companyId, ctx.userId);
   if (perms[section] !== "NONE") return children;
 
+  // Dopo il login si arriva sempre su /dashboard: se il ruolo non la include
+  // si va alla prima sezione consentita invece di mostrare "non hai accesso".
+  const landing = firstAllowedPath(perms);
+  if (section === "DASHBOARD" && landing) redirect(companyPath(slug, landing));
+
   return (
     <div className="max-w-md mx-auto py-20 text-center">
       <ShieldOff className="w-9 h-9 mx-auto mb-4" style={{ color: "var(--fg-3)" }} strokeWidth={1.4} />
       <p className="text-[15px] font-semibold" style={{ color: "var(--fg)" }}>Non hai accesso a questa sezione</p>
       <p className="text-[13px] mt-1" style={{ color: "var(--fg-3)" }}>
-        Il tuo ruolo non la include. Chiedi a un amministratore di modificarlo in Impostazioni › Ruoli.
+        {landing
+          ? "Il tuo ruolo non la include. Chiedi a un amministratore di modificarlo in Impostazioni › Ruoli."
+          : "Il tuo ruolo non concede ancora nessuna sezione: chiedi a un amministratore di impostarne i permessi in Impostazioni › Ruoli."}
       </p>
-      <Link href={companyPath(slug, "/dashboard")} className="inline-block mt-5 text-[13px] underline" style={{ color: "var(--fg-2)" }}>
-        Torna alla dashboard
-      </Link>
+      {landing && (
+        <Link href={companyPath(slug, landing)} className="inline-block mt-5 text-[13px] underline" style={{ color: "var(--fg-2)" }}>
+          Vai a una sezione disponibile
+        </Link>
+      )}
     </div>
   );
 }

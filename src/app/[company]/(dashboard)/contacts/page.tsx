@@ -122,6 +122,7 @@ export default async function ContactsPage({
           savedViews={savedViews}
           sourceOptions={sourceOptions}
           currentUserId={userId}
+          canConfigure={ctx.perms.SETTINGS !== "NONE"}
         />
         <ContactsTable
           slug={slug}

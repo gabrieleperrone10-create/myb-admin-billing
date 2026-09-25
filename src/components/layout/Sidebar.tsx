@@ -108,7 +108,6 @@ export default function Sidebar({
   const pathname = stripCompany(usePathname());
   const { user } = useUser();
   const allowed = new Set(allowedSections);
-  const hasAny = allowedSections.length > 0;
 
   const [searchOpen, setSearchOpen] = useState(false);
 
@@ -137,7 +136,9 @@ export default function Sidebar({
   }
 
   function isVisible(href: string) {
-    if (!hasAny) return true;
+    // Il layout calcola i permessi con getUserAccess: chi non ha ruoli riceve
+    // gia' tutte le sezioni. Una lista vuota significa "nessuna sezione", non
+    // "tutte" (prima mostrava tutto il menu a chi non poteva aprire nulla).
     const section = SECTION_MAP[href];
     if (!section) return true;
     if (href === "/settings") return allowed.has("SETTINGS");
@@ -191,7 +192,9 @@ export default function Sidebar({
       <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4">
         {/* Dashboard solo */}
         <div>
-          <NavItem href="/dashboard" label="Dashboard" icon={LayoutDashboard} pathname={pathname} accentColor="var(--fg)" slug={slug} />
+          {allowed.has("DASHBOARD") && (
+            <NavItem href="/dashboard" label="Dashboard" icon={LayoutDashboard} pathname={pathname} accentColor="var(--fg)" slug={slug} />
+          )}
         </div>
 
         {visibleVen.length > 0 && (

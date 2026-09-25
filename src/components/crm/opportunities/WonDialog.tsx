@@ -12,11 +12,12 @@ import { convertOpportunityToClientAction } from "@/app/actions/opportunities";
  * questo punto: qui si sceglie solo il passo successivo.
  */
 export function WonDialog({
-  opportunityId, opportunityName, onClose,
+  opportunityId, opportunityName, onClose, canCreateContract = true,
 }: {
   opportunityId: string;
   opportunityName: string;
   onClose: () => void;
+  canCreateContract?: boolean;
 }) {
   const slug = useCompanySlug();
   const router = useRouter();
@@ -59,14 +60,14 @@ export function WonDialog({
         )}
 
         <div className="space-y-2">
-          <button
+          {canCreateContract && <button
             onClick={convertAndGoToContract}
             disabled={loading}
             className="w-full py-2.5 rounded-[var(--r-md)] text-[13px] font-semibold"
             style={{ backgroundColor: "var(--fg)", color: "var(--surface)", minHeight: "unset" }}
           >
             {loading ? "Attendere…" : "Crea cliente e vai al contratto"}
-          </button>
+          </button>}
           <button
             onClick={onClose}
             disabled={loading}

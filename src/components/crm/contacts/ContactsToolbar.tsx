@@ -28,6 +28,7 @@ export default function ContactsToolbar({
   savedViews,
   sourceOptions,
   currentUserId,
+  canConfigure = true,
 }: {
   slug: string;
   tab: ContactTab;
@@ -42,6 +43,8 @@ export default function ContactsToolbar({
   savedViews: SavedViewLite[];
   sourceOptions: string[];
   currentUserId: string;
+  /** Mostra il menu Impostazioni (campi, etichette) */
+  canConfigure?: boolean;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -60,7 +63,7 @@ export default function ContactsToolbar({
             <Upload className="w-4 h-4" />
             <span className="hidden sm:inline">Importa CSV</span>
           </Link>
-          <SettingsMenu slug={slug} />
+          {canConfigure && <SettingsMenu slug={slug} />}
           <Link
             href={companyPath(slug, "/contacts/new")}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-[var(--r-md)] text-[13px] font-semibold text-white"

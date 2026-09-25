@@ -28,6 +28,7 @@ function groupByStage(stages: StageData[], opportunities: OpportunityCardData[])
 
 export function KanbanBoard({
   pipelines, currentPipelineId, stages, opportunities, members, products, customFieldDefs, nextTaskByOpportunity = {},
+  canCreateContract = true,
 }: {
   pipelines: PipelineData[];
   currentPipelineId: string;
@@ -38,6 +39,8 @@ export function KanbanBoard({
   customFieldDefs: CustomFieldDefData[];
   /** Prossimo task aperto per opportunità (agente Task), caricato dalla pagina server. */
   nextTaskByOpportunity?: Record<string, NextTaskSummary | null>;
+  /** "Vinta": offre la creazione di cliente+contratto solo a chi puo' creare contratti */
+  canCreateContract?: boolean;
 }) {
   const slug = useCompanySlug();
   const router = useRouter();
@@ -183,7 +186,7 @@ export function KanbanBoard({
       />
 
       {wonDialog && (
-        <WonDialog opportunityId={wonDialog.id} opportunityName={wonDialog.name} onClose={() => setWonDialog(null)} />
+        <WonDialog opportunityId={wonDialog.id} opportunityName={wonDialog.name} onClose={() => setWonDialog(null)} canCreateContract={canCreateContract} />
       )}
 
       {lostPending && (

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Plus, Pencil, Trash2, X, Shield, Users } from "lucide-react";
 import { createRole, createSalesRole, deleteRole } from "@/app/actions/roles";
 import type { AppRole, AppRolePermission } from "@prisma/client";
@@ -17,6 +18,7 @@ export default function RolesClient({ roles, slug }: { roles: RoleWithCount[]; s
   const [color, setColor] = useState("#4f7deb");
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+  const router = useRouter();
 
   async function handleCreate() {
     if (!name.trim()) return;
@@ -27,6 +29,9 @@ export default function RolesClient({ roles, slug }: { roles: RoleWithCount[]; s
     if (res.ok) {
       setName(""); setDesc(""); setColor("#4f7deb");
       setCreateOpen(false);
+      // Un ruolo nuovo nasce senza permessi: si apre subito l'editor, altrimenti
+      // chi lo riceve non puo' aprire nessuna sezione.
+      if ("id" in res && res.id) router.push(`/${slug}/settings/roles/${res.id}`);
     } else {
       setErr(res.error ?? "Errore");
     }
@@ -84,6 +89,20 @@ export default function RolesClient({ roles, slug }: { roles: RoleWithCount[]; s
                     style={{ backgroundColor: "var(--subtle)", color: "var(--fg-3)", border: "1px solid var(--border)" }}
                   >
                     sistema
+                  </span>
+                )}
+                {!role.permissions.some(p => p.level !== "NONE") && (
+                  <span
+                    className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                    style={{ backgroundColor: "#ef44441a", color: "#b91c1c" }}
+                    title="Chi ha questo ruolo non può aprire nessuna sezione: imposta i permessi"
+                  >
+                    nessun permesso impostato
+                  </span>
+                )}
+                {role.permissions.some(p => p.level !== "NONE" && p.scope === "OWN") && (
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ backgroundColor: "#f973161a", color: "#c2410c" }}>
+                    solo assegnati
                   </span>
                 )}
               </div>

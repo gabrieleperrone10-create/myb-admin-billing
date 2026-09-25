@@ -27,6 +27,7 @@ export function ContactHeaderActions({
   ownerUserId,
   members,
   clientId,
+  can = { viewClient: true, createClient: true, tasks: true, delete: true },
 }: {
   slug: string;
   contactId: string;
@@ -34,6 +35,8 @@ export function ContactHeaderActions({
   ownerUserId: string | null;
   members: { userId: string; name: string }[];
   clientId: string | null;
+  /** Azioni visibili secondo il ruolo: cio' che non e' concesso non si mostra */
+  can?: { viewClient: boolean; createClient: boolean; tasks: boolean; delete: boolean };
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -129,7 +132,7 @@ export function ContactHeaderActions({
             </select>
           </div>
 
-          <div style={{ borderTop: "1px solid var(--border)" }}>
+          {can.viewClient && (clientId || can.createClient) && <div style={{ borderTop: "1px solid var(--border)" }}>
             {clientId ? (
               <Link
                 href={companyPath(slug, `/clients/${clientId}`)}
@@ -149,9 +152,9 @@ export function ContactHeaderActions({
                 <ExternalLink className="w-3.5 h-3.5" /> Crea cliente di fatturazione
               </button>
             )}
-          </div>
+          </div>}
 
-          <div style={{ borderTop: "1px solid var(--border)" }}>
+          {can.tasks && <div style={{ borderTop: "1px solid var(--border)" }}>
             <button
               type="button"
               onClick={() => { setOpen(false); setTaskDialogOpen(true); }}
@@ -160,9 +163,9 @@ export function ContactHeaderActions({
             >
               <ListTodo className="w-3.5 h-3.5" /> Nuovo task / follow-up
             </button>
-          </div>
+          </div>}
 
-          <div style={{ borderTop: "1px solid var(--border)" }}>
+          {can.delete && <div style={{ borderTop: "1px solid var(--border)" }}>
             <button
               type="button"
               disabled={pending}
@@ -172,7 +175,7 @@ export function ContactHeaderActions({
             >
               <Trash2 className="w-3.5 h-3.5" /> Elimina contatto
             </button>
-          </div>
+          </div>}
 
           {error && (
             <p className="px-3 py-2 text-[12px]" style={{ borderTop: "1px solid var(--border)", color: "var(--danger)" }}>

@@ -271,7 +271,10 @@ export default async function DashboardPage({
   searchParams: Promise<{ period?: string; from?: string; to?: string }>;
 }) {
   const [{ company: slug }, sp] = await Promise.all([params, searchParams]);
-  const { db, companyId, company } = await requireCompany(slug);
+  const { db, companyId, company, perms } = await requireCompany(slug);
+  // Saldo, entrate, spese e utile sono dati di tutta l'azienda: si mostrano solo
+  // a chi ha accesso a pagamenti e spese (es. non a un venditore).
+  const finance = perms.PAYMENTS !== "NONE" && perms.EXPENSES !== "NONE";
   const period = sp.period ?? "month";
   const data   = await getData(db, companyId, company, period, sp.from, sp.to);
 
@@ -333,6 +336,7 @@ export default async function DashboardPage({
       {/* Obiettivi attivi */}
       <OkrWidget objectives={data.activeObjectives} slug={slug} />
 
+      {finance && (<>
       {/* Saldo CC + Volume vendite */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <BankBalanceCard
@@ -402,6 +406,8 @@ export default async function DashboardPage({
         />
       </div>
 
+      </>)}
+
       {/* KPI row — Vendite (CRM) */}
       {sales && (
         <div>
@@ -438,6 +444,7 @@ export default async function DashboardPage({
         </div>
       )}
 
+      {finance && (<>
       {/* Area chart — full width */}
       <TrendChart monthly={data.monthly12} daily={data.daily30} />
 
@@ -627,6 +634,7 @@ export default async function DashboardPage({
         </div>
       </div>
 
+      </>)}
     </div>
   );
 }

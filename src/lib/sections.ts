@@ -44,3 +44,21 @@ export function sectionForPath(pathWithoutSlug: string): AppSection | null {
   }
   return best ? best[1] : null;
 }
+
+/** Ordine in cui cercare una pagina di atterraggio consentita dal ruolo. */
+const LANDING_ORDER: AppSection[] = [
+  "DASHBOARD", "TASKS", "CONTACTS", "PIPELINES", "CONVERSATIONS", "CALENDARS", "REPORTS", "FORMS",
+  "CLIENTS", "CONTRACTS", "INVOICES", "PAYMENTS", "CREDIT_NOTES", "DEPOSITS", "EXPENSES", "PRODUCTS",
+  "OBJECTIVES", "EVENTS", "TEAM", "ACADEMY", "SOP", "KNOWLEDGE", "AUTOMATIONS", "SETTINGS",
+];
+
+/** Prima pagina che il ruolo puo' aprire (percorso senza slug), o null se nessuna. */
+export function firstAllowedPath(perms: Record<AppSection, string>): string | null {
+  for (const s of LANDING_ORDER) {
+    if (perms[s] && perms[s] !== "NONE") {
+      const entry = PATH_SECTIONS.find(([, sec]) => sec === s);
+      if (entry) return entry[0];
+    }
+  }
+  return null;
+}

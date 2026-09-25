@@ -22,7 +22,7 @@ export default async function OpportunitiesPage({
   searchParams: Promise<{ pipeline?: string; owner?: string; status?: string; q?: string; view?: string; sort?: string; dir?: string }>;
 }) {
   const [{ company: slug }, sp] = await Promise.all([params, searchParams]);
-  const { db, companyId, company } = await requireCompany(slug);
+  const { db, companyId, company, perms } = await requireCompany(slug);
 
   await ensureDefaultPipeline(db, companyId);
 
@@ -149,13 +149,13 @@ export default async function OpportunitiesPage({
           <h1 className="text-[22px] md:text-[24px] font-bold text-fg" style={{ letterSpacing: "-0.02em" }}>Opportunità</h1>
           <p className="text-[13px] text-fg-3 mt-0.5">Pipeline di vendita e kanban delle trattative</p>
         </div>
-        <Link
+        {perms.SETTINGS !== "NONE" && <Link
           href={`/${slug}/settings/pipelines`}
           className="flex items-center gap-1.5 px-3 py-2 rounded-[var(--r-md)] text-[13px]"
           style={{ border: "1px solid var(--border)", color: "var(--fg-2)", minHeight: "unset" }}
         >
           <Settings className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Pipeline</span>
-        </Link>
+        </Link>}
       </div>
 
       <Suspense fallback={null}>
@@ -166,6 +166,7 @@ export default async function OpportunitiesPage({
         <p className="text-[13px] text-fg-3">Nessuna pipeline configurata.</p>
       ) : view === "kanban" ? (
         <KanbanBoard
+          canCreateContract={perms.CONTRACTS === "EDIT" || perms.CONTRACTS === "FULL"}
           pipelines={pipelines}
           currentPipelineId={currentPipelineId}
           stages={stages}
