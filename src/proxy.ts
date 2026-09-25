@@ -27,7 +27,12 @@ export default clerkMiddleware(async (auth, req) => {
     await auth.protect();
   }
 
-  return NextResponse.next();
+  // Il percorso richiesto, per il controllo di sezione in (dashboard)/template.tsx:
+  // i layout non ricevono il pathname, e il template si rirenderizza a ogni
+  // navigazione (anche client-side, che passa comunque da qui come richiesta RSC).
+  const headers = new Headers(req.headers);
+  headers.set("x-app-pathname", req.nextUrl.pathname);
+  return NextResponse.next({ request: { headers } });
 });
 
 export const config = {

@@ -5,7 +5,7 @@ import Topbar from "@/components/layout/Topbar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { AuthGuard } from "@/components/layout/AuthGuard";
 import { requireCompany, listMyCompanies, companyDisplayName } from "@/lib/company";
-import { getUserPermissions, canView, ALL_SECTIONS } from "@/lib/permissions";
+import { getUserAccess, canView, ALL_SECTIONS } from "@/lib/permissions";
 import { countMyDueTasks } from "@/lib/crm/tasks";
 
 /**
@@ -31,7 +31,8 @@ export default async function DashboardLayout({
 }) {
   const { company: slug } = await params;
   const [ctx, companies] = await Promise.all([requireCompany(slug), listMyCompanies()]);
-  const perms = await getUserPermissions(ctx.db, ctx.companyId, ctx.userId);
+  // Stessa regola del controllo di sezione (template.tsx): senza ruoli accesso pieno.
+  const { perms } = await getUserAccess(ctx.db, ctx.companyId, ctx.userId);
   const allowedSections = ALL_SECTIONS.filter(s => canView(perms, s));
   const companyOptions = companies.map(c => ({ slug: c.slug, name: companyDisplayName(c), logoUrl: c.logoUrl }));
 

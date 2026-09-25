@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Plus, Pencil, Trash2, X, Shield, Users } from "lucide-react";
-import { createRole, deleteRole } from "@/app/actions/roles";
+import { createRole, createSalesRole, deleteRole } from "@/app/actions/roles";
 import type { AppRole, AppRolePermission } from "@prisma/client";
 
 type RoleWithCount = AppRole & {
@@ -42,7 +42,18 @@ export default function RolesClient({ roles, slug }: { roles: RoleWithCount[]; s
 
   return (
     <>
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-end gap-2 mb-4">
+        {!roles.some(r => r.name === "Venditore") && (
+          <button
+            onClick={async () => { const r = await createSalesRole(slug); if (!r.ok) alert(r.error); }}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-[var(--r-md)] text-[13px] font-medium"
+            style={{ border: "1px solid var(--border)", color: "var(--fg)", minHeight: "unset" }}
+            title="Ruolo già configurato: CRM, task e calendario con visibilità «Solo assegnati»"
+          >
+            <Users className="w-4 h-4" />
+            Aggiungi ruolo Venditore
+          </button>
+        )}
         <button
           onClick={() => setCreateOpen(true)}
           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-[var(--r-md)] text-[13px] font-semibold"

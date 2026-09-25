@@ -18,6 +18,8 @@ type RolePreset = {
   color: string;
   isSystem: boolean;
   perms: (s: AppSection) => PermissionLevel;
+  /** Visibilita' dei dati per sezione (default: tutti) */
+  scope?: (s: AppSection) => "ALL" | "OWN";
 };
 
 const PRESETS: RolePreset[] = [
@@ -50,6 +52,16 @@ const PRESETS: RolePreset[] = [
     perms: s => (["DASHBOARD", "ACADEMY", "SOP", "EVENTS", "KNOWLEDGE", "TEAM"] as AppSection[]).includes(s) ? "EDIT" : "NONE",
   },
   {
+    name: "Venditore",
+    description: "Lavora solo sui contatti assegnati: CRM, task, calendario e i relativi clienti e contratti",
+    color: "#14b8a6",
+    isSystem: false,
+    perms: s => (["CONTACTS", "PIPELINES", "CONVERSATIONS", "TASKS", "CALENDARS"] as AppSection[]).includes(s) ? "EDIT"
+      : (["DASHBOARD", "REPORTS", "CLIENTS", "CONTRACTS", "INVOICES", "FORMS", "KNOWLEDGE", "ACADEMY", "SOP", "EVENTS"] as AppSection[]).includes(s) ? "VIEW"
+      : "NONE",
+    scope: () => "OWN",
+  },
+  {
     name: "Viewer",
     description: "Solo visualizzazione di tutte le sezioni",
     color: "#6b7280",
@@ -57,6 +69,34 @@ const PRESETS: RolePreset[] = [
     perms: () => "VIEW",
   },
 ];
+
+/**
+ * Crea un ruolo predefinito (es. "Venditore") in un'azienda che ha gia' dei
+ * ruoli. Non duplica: se esiste un ruolo con lo stesso nome restituisce quello.
+ */
+export async function createPresetRole(db: CompanyDb, companyId: string, name: string) {
+  const preset = PRESETS.find(p => p.name === name && !p.isSystem);
+  if (!preset) throw new Error("Ruolo predefinito sconosciuto");
+  const existing = await db.appRole.findFirst({ where: { name: preset.name } });
+  if (existing) return existing;
+  return db.appRole.create({
+    data: {
+      companyId,
+      name: preset.name,
+      description: preset.description,
+      color: preset.color,
+      isSystem: false,
+      permissions: {
+        create: ALL_SECTIONS.map(section => ({
+          companyId,
+          section,
+          level: preset.perms(section),
+          scope: preset.scope?.(section) ?? "ALL",
+        })),
+      },
+    },
+  });
+}
 
 export async function seedDefaultRoles(db: CompanyDb, companyId: string, ownerClerkId?: string) {
   const existing = await db.appRole.count();
@@ -75,6 +115,7 @@ export async function seedDefaultRoles(db: CompanyDb, companyId: string, ownerCl
             companyId,
             section,
             level: preset.perms(section),
+            scope: preset.scope?.(section) ?? "ALL",
           })),
         },
       },

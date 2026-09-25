@@ -2,7 +2,8 @@
 import { useState } from "react";
 import { Save, Check } from "lucide-react";
 import { updateRole, updateRolePermissions } from "@/app/actions/roles";
-import type { AppRole, AppRolePermission, AppSection, PermissionLevel } from "@prisma/client";
+import type { AppRole, AppRolePermission, AppSection, DataScope, PermissionLevel } from "@prisma/client";
+import { SCOPABLE_SECTIONS } from "@/lib/visibility";
 
 type RoleWithPerms = AppRole & { permissions: AppRolePermission[] };
 
@@ -66,12 +67,39 @@ export default function RoleEditorClient({ role, slug }: { role: RoleWithPerms; 
   ) as Record<AppSection, PermissionLevel>;
 
   const [perms, setPerms] = useState(initialPerms);
+  const [scopes, setScopes] = useState(() => Object.fromEntries(
+    ALL_SECTIONS.map(s => [s, (role.permissions.find(p => p.section === s)?.scope ?? "ALL") as DataScope]),
+  ) as Record<AppSection, DataScope>);
+
+  /** Selettore "Tutti i dati / Solo assegnati" per le sezioni che lo supportano. */
+  function ScopeSelect({ section }: { section: AppSection }) {
+    if (!SCOPABLE_SECTIONS.has(section)) return <span className="text-[11px]" style={{ color: "var(--fg-3)" }}>—</span>;
+    const off = perms[section] === "NONE";
+    return (
+      <select
+        value={scopes[section]}
+        disabled={off}
+        onChange={e => setScopes(s => ({ ...s, [section]: e.target.value as DataScope }))}
+        className="text-[12px] rounded-[var(--r-md)] px-2 py-1 outline-none"
+        style={{
+          border: "1px solid var(--border)",
+          backgroundColor: scopes[section] === "OWN" && !off ? "#f9731618" : "var(--subtle)",
+          color: off ? "var(--fg-3)" : "var(--fg)",
+          opacity: off ? 0.5 : 1,
+        }}
+        title="Solo assegnati: l'utente vede solo i contatti di cui è responsabile o assegnatario e i dati collegati"
+      >
+        <option value="ALL">Tutti i dati</option>
+        <option value="OWN">Solo assegnati</option>
+      </select>
+    );
+  }
 
   async function handleSave() {
     setLoading(true);
     const [metaRes, permRes] = await Promise.all([
       updateRole(slug, role.id, { name: name.trim(), description: desc.trim() || undefined, color }),
-      updateRolePermissions(slug, role.id, ALL_SECTIONS.map(section => ({ section, level: perms[section] }))),
+      updateRolePermissions(slug, role.id, ALL_SECTIONS.map(section => ({ section, level: perms[section], scope: scopes[section] }))),
     ]);
     setLoading(false);
     if (metaRes.ok && permRes.ok) {
@@ -144,13 +172,17 @@ export default function RoleEditorClient({ role, slug }: { role: RoleWithPerms; 
           <h2 className="text-[13px] font-semibold uppercase tracking-wider font-mono" style={{ color: "var(--fg-3)" }}>
             Permessi per sezione
           </h2>
+          <p className="text-[12px] mt-1" style={{ color: "var(--fg-3)" }}>
+            <strong>Solo assegnati</strong>: l&apos;utente vede solo i contatti di cui è responsabile o a cui è assegnato, e i dati
+            collegati (conversazioni, opportunità, task, appuntamenti, clienti, contratti, fatture). Con più ruoli vale il più ampio.
+          </p>
         </div>
 
         {/* Desktop table header */}
         <div
           className="hidden md:grid px-4 py-2 text-[11px] font-semibold uppercase tracking-wider font-mono"
           style={{
-            gridTemplateColumns: "1fr repeat(4, 100px)",
+            gridTemplateColumns: "1fr repeat(4, 100px) 140px",
             backgroundColor: "var(--subtle)",
             borderBottom: "1px solid var(--border)",
             color: "var(--fg-3)",
@@ -160,6 +192,7 @@ export default function RoleEditorClient({ role, slug }: { role: RoleWithPerms; 
           {LEVELS.map(l => (
             <span key={l} className="text-center">{LEVEL_LABELS[l]}</span>
           ))}
+          <span className="text-center">Dati visibili</span>
         </div>
 
         {ALL_SECTIONS.map((section, i) => (
@@ -173,7 +206,7 @@ export default function RoleEditorClient({ role, slug }: { role: RoleWithPerms; 
             {/* Desktop row */}
             <div
               className="hidden md:grid items-center px-4 py-2.5"
-              style={{ gridTemplateColumns: "1fr repeat(4, 100px)" }}
+              style={{ gridTemplateColumns: "1fr repeat(4, 100px) 140px" }}
             >
               <span className="text-[13px] font-medium" style={{ color: "var(--fg)" }}>
                 {SECTION_LABELS[section]}
@@ -196,6 +229,7 @@ export default function RoleEditorClient({ role, slug }: { role: RoleWithPerms; 
                   </button>
                 </div>
               ))}
+              <div className="flex justify-center"><ScopeSelect section={section} /></div>
             </div>
 
             {/* Mobile row */}
@@ -224,6 +258,11 @@ export default function RoleEditorClient({ role, slug }: { role: RoleWithPerms; 
                   </button>
                 ))}
               </div>
+              {SCOPABLE_SECTIONS.has(section) && (
+                <div className="mt-2 flex items-center gap-2 text-[12px]" style={{ color: "var(--fg-3)" }}>
+                  Dati visibili <ScopeSelect section={section} />
+                </div>
+              )}
             </div>
           </div>
         ))}
