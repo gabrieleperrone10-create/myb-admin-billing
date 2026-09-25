@@ -50,6 +50,8 @@ export default async function EmailDomainPage({ params }: { params: Promise<{ co
         currentFromName={c.emailFromName ?? companyDisplayName(c)}
         currentLocal={c.emailDomain && c.emailFromAddress?.toLowerCase().endsWith(`@${c.emailDomain}`) ? c.emailFromAddress.split("@")[0] : "info"}
         repliesTo={inbound}
+        nextAutoCheckAt={meta.autoCheck?.nextCheckAt ?? null}
+        ownersNotifiedAt={meta.autoCheck?.notifiedAt ?? null}
       />
     </div>
   );

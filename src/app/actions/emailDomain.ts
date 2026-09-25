@@ -6,7 +6,7 @@ import type { CompanyContext } from "@/lib/company";
 import { basePrisma } from "@/lib/db";
 import { canEdit, getEffectivePermissions } from "@/lib/permissions";
 import { normalizeDomain } from "@/lib/email/identity";
-import { refreshCompanyEmailDomain, removeCompanyEmailDomain, setupCompanyEmailDomain } from "@/lib/email/domains";
+import { ensureAutoCheck, refreshCompanyEmailDomain, removeCompanyEmailDomain, setupCompanyEmailDomain } from "@/lib/email/domains";
 
 type Result = { ok: true } | { ok: false; error: string };
 
@@ -34,6 +34,7 @@ export const connectEmailDomain = companyAction(async (ctx, rawDomain: string, w
 export const verifyEmailDomain = companyAction(async (ctx): Promise<Result> => {
   await assertCanEditSettings(ctx);
   const c = await refreshCompanyEmailDomain(ctx.companyId, { triggerVerify: true });
+  await ensureAutoCheck(ctx.companyId);
   revalidatePath(path(ctx.slug));
   const err = (c.emailDomainMeta as { lastError?: string | null } | null)?.lastError;
   return err ? { ok: false, error: err } : { ok: true };

@@ -45,7 +45,38 @@ export type EmailDomainMeta = {
   records?: DomainRecord[];
   lastCheckedAt?: string;
   lastError?: string | null;
+  /** Controlli automatici dopo il collegamento (+5 min, +3 h, +24 h) */
+  autoCheck?: {
+    startedAt: string;
+    /** Indice del prossimo controllo in AUTO_CHECK_OFFSETS */
+    step: number;
+    nextCheckAt: string | null;
+    /** Email agli Owner inviata (una sola volta) */
+    notifiedAt?: string;
+    doneAt?: string;
+  };
 };
+
+/** Ritardi dei controlli automatici rispetto al collegamento del dominio. */
+export const AUTO_CHECK_OFFSETS_MS = [5 * 60_000, 3 * 3_600_000, 24 * 3_600_000] as const;
+
+export function newAutoCheck(now = new Date()): NonNullable<EmailDomainMeta["autoCheck"]> {
+  return { startedAt: now.toISOString(), step: 0, nextCheckAt: new Date(now.getTime() + AUTO_CHECK_OFFSETS_MS[0]).toISOString() };
+}
+
+type DomainStatusFields = { emailDomain: string | null; emailDomainStatus: string | null; inboundDomain: string | null; inboundDomainStatus: string | null };
+
+/** Tutto verificato: dominio di invio e, se presente, sottodominio di ricezione. */
+export function isFullyVerified(c: DomainStatusFields): boolean {
+  return c.emailDomainStatus === "verified" && (!c.inboundDomain || c.inboundDomainStatus === "verified");
+}
+
+/** C'e' un controllo automatico scaduto da eseguire? (solo lettura dei campi gia' caricati) */
+export function autoCheckDue(c: DomainStatusFields & { emailDomainMeta: unknown }, now = new Date()): boolean {
+  if (!c.emailDomain || isFullyVerified(c)) return false;
+  const next = ((c.emailDomainMeta ?? {}) as EmailDomainMeta).autoCheck?.nextCheckAt;
+  return !!next && new Date(next).getTime() <= now.getTime();
+}
 
 const REGION = "eu-west-1" as const;
 
@@ -144,7 +175,7 @@ export async function setupCompanyEmailDomain(companyId: string, domain: string,
   if (other) throw new Error("Questo dominio è già collegato a un'altra azienda");
 
   const sending = await createOrAdopt(domain, { sending: "enabled", receiving: "disabled" });
-  const meta: EmailDomainMeta = { sendingId: sending.id, managedSending: sending.managed, records: [] };
+  const meta: EmailDomainMeta = { sendingId: sending.id, managedSending: sending.managed, records: [], autoCheck: newAutoCheck() };
   let inbound: string | null = null;
   if (withReceiving) {
     inbound = `reply.${domain}`;
@@ -218,4 +249,98 @@ export async function removeCompanyEmailDomain(companyId: string) {
     emailDomainMeta: Prisma.JsonNull,
   });
   return errors;
+}
+
+
+/**
+ * Esegue il controllo automatico di un'azienda se e' scaduto. Chiamata dal
+ * layout (in background, con after()) mentre qualcuno usa il gestionale e dal
+ * cron giornaliero per tutte le aziende. Idempotente: se il controllo non e'
+ * scaduto non fa nulla.
+ * Dopo l'ultimo controllo (+24 h) ancora non verificato: email agli Owner, una volta.
+ */
+export async function runDomainAutoCheck(companyId: string, now = new Date()): Promise<"skip" | "verified" | "pending" | "notified"> {
+  const before = await basePrisma.company.findUnique({ where: { id: companyId } });
+  if (!before || !autoCheckDue(before, now)) return "skip";
+
+  const c = await refreshCompanyEmailDomain(companyId, { triggerVerify: true });
+  const meta = (c.emailDomainMeta ?? {}) as EmailDomainMeta;
+  const ac = meta.autoCheck ?? newAutoCheck(now);
+
+  if (isFullyVerified(c)) {
+    await save(companyId, { emailDomainMeta: { ...meta, autoCheck: { ...ac, nextCheckAt: null, doneAt: now.toISOString() } } as Prisma.InputJsonValue });
+    return "verified";
+  }
+
+  const step = ac.step + 1;
+  if (step < AUTO_CHECK_OFFSETS_MS.length) {
+    const nextCheckAt = new Date(new Date(ac.startedAt).getTime() + AUTO_CHECK_OFFSETS_MS[step]);
+    // Se il gestionale non e' stato usato per un po', il prossimo controllo
+    // non deve cadere nel passato: almeno fra 5 minuti.
+    const next = nextCheckAt.getTime() > now.getTime() ? nextCheckAt : new Date(now.getTime() + AUTO_CHECK_OFFSETS_MS[0]);
+    await save(companyId, { emailDomainMeta: { ...meta, autoCheck: { ...ac, step, nextCheckAt: next.toISOString() } } as Prisma.InputJsonValue });
+    return "pending";
+  }
+
+  // Ultimo controllo fallito: avviso agli Owner (una volta sola).
+  if (!ac.notifiedAt) {
+    await notifyOwnersDomainPending(c).catch(e => console.error("[email-domain] notifica owner:", e));
+  }
+  await save(companyId, {
+    emailDomainMeta: { ...meta, autoCheck: { ...ac, step, nextCheckAt: null, notifiedAt: ac.notifiedAt ?? now.toISOString() } } as Prisma.InputJsonValue,
+  });
+  return "notified";
+}
+
+async function notifyOwnersDomainPending(company: Awaited<ReturnType<typeof basePrisma.company.findUniqueOrThrow>>) {
+  const { listCompanyMembers } = await import("@/lib/crm/members");
+  // Moduli leggeri: questa funzione gira anche dal cron e da after(), senza
+  // caricare la parte di sessione (lib/company) che non serve.
+  const { senderFor } = await import("@/lib/email/identity");
+
+  const owners = await basePrisma.appUserRole.findMany({
+    where: { companyId: company.id, role: { name: "Owner" } },
+    select: { clerkUserId: true },
+  });
+  const members = await listCompanyMembers(company.id);
+  const ownerIds = new Set(owners.map(o => o.clerkUserId));
+  // Senza Owner assegnati si avvisano tutti i membri; in ultima istanza l'email aziendale.
+  const recipients = [...new Set(
+    (ownerIds.size ? members.filter(m => ownerIds.has(m.userId)) : members).map(m => m.email).filter((e): e is string => !!e),
+  )];
+  if (!recipients.length && company.email) recipients.push(company.email);
+  if (!recipients.length) return;
+
+  const meta = (company.emailDomainMeta ?? {}) as EmailDomainMeta;
+  const pending = (meta.records ?? []).filter(r => r.status !== "verified");
+  const esc = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const rows = pending.map(r =>
+    `<tr><td style="padding:4px 8px;border:1px solid #e5e7eb">${esc(r.type)}</td><td style="padding:4px 8px;border:1px solid #e5e7eb;font-family:monospace">${esc(r.host)}</td><td style="padding:4px 8px;border:1px solid #e5e7eb;font-family:monospace;word-break:break-all">${esc(r.value.length > 80 ? r.value.slice(0, 80) + "…" : r.value)}</td><td style="padding:4px 8px;border:1px solid #e5e7eb">${esc(r.status)}</td></tr>`,
+  ).join("");
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/+$/, "");
+  const link = `${appUrl}/${company.slug}/settings/email`;
+  const brand = company.brandName || company.name;
+  const { fromName, fromEmail } = senderFor(company, brand);
+  const from = fromEmail || process.env.EMAIL_FROM;
+  if (!from) return;
+
+  await resend().emails.send({
+    from: `${fromName} <${from}>`,
+    to: recipients,
+    subject: `Dominio email non ancora verificato — ${company.emailDomain}`,
+    html: `<p>Ciao,</p>
+<p>a 24 ore dal collegamento il dominio <strong>${esc(company.emailDomain ?? "")}</strong>${company.inboundDomain ? ` (risposte su <strong>${esc(company.inboundDomain)}</strong>)` : ""} di ${esc(brand)} non risulta ancora verificato.</p>
+${rows ? `<p>Record ancora da verificare:</p><table style="border-collapse:collapse;font-size:13px">${rows}</table>` : ""}
+<p>Controlla che i record siano inseriti nel pannello DNS esattamente come indicato (su Cloudflare con Proxy "DNS only"), poi premi <strong>Verifica</strong>:<br><a href="${link}">${esc(link)}</a></p>
+<p>Finché il dominio non è verificato le email continuano a partire dal mittente attuale.</p>`,
+  });
+}
+
+/** Avvia lo schedule dei controlli se manca (domini collegati prima di questa funzione). */
+export async function ensureAutoCheck(companyId: string) {
+  const c = await basePrisma.company.findUnique({ where: { id: companyId } });
+  if (!c?.emailDomain || isFullyVerified(c)) return;
+  const meta = (c.emailDomainMeta ?? {}) as EmailDomainMeta;
+  if (meta.autoCheck?.nextCheckAt || meta.autoCheck?.notifiedAt) return;
+  await save(companyId, { emailDomainMeta: { ...meta, autoCheck: newAutoCheck() } as Prisma.InputJsonValue });
 }

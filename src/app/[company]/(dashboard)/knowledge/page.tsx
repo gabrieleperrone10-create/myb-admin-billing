@@ -210,7 +210,7 @@ export default function KnowledgePage() {
       <Section title="Dominio email dell'azienda" icon="✉️">
         <Step step={1} title="Collega il dominio" desc="Impostazioni → Dominio email → inserisci il dominio (es. tuodominio.it). Spunta 'Ricevi le risposte nel CRM' per usare reply.tuodominio.it." />
         <Step step={2} title="Aggiungi i record DNS" desc="Copia i record mostrati nel pannello DNS (Cloudflare: Proxy 'DNS only', nuvola grigia). Stanno su sottodomini dedicati: la posta aziendale non viene toccata." />
-        <Step step={3} title="Verifica" desc="Premi Verifica. La propagazione può richiedere da pochi minuti ad alcune ore; su Cloudflare una risposta negativa resta in cache fino a 30 minuti." />
+        <Step step={3} title="Verifica" desc="Premi Verifica. La propagazione può richiedere da pochi minuti ad alcune ore; su Cloudflare una risposta negativa resta in cache fino a 30 minuti. Il gestionale ricontrolla da solo dopo 5 minuti, 3 ore e 24 ore; se dopo 24 ore non è ancora verificato gli Owner ricevono un'email con i record in sospeso." />
         <Step step={4} title="Imposta il mittente" desc="Nome e indirizzo (es. vendite@tuodominio.it). Fatture, promemoria e messaggi CRM partono da lì appena il dominio è verificato; fino ad allora resta il mittente attuale." />
         <Tip text="Non inserire mai un record MX sul dominio principale (senza sottodominio): sostituirebbe la posta aziendale. La ricezione del CRM va solo su reply.tuodominio.it." color={C.warn} />
       </Section>
@@ -403,6 +403,7 @@ export default function KnowledgePage() {
           <Kv label="Fatture ricorrenti"  value="Generazione automatica delle fatture per tutti i tipi di contratto attivi. Gira ogni giorno alle 9:00. Dalla seconda rata in poi la fattura viene inviata subito al cliente (non resta in bozza)." />
           <Kv label="Promemoria appuntamenti" value="Email (o WhatsApp entro 24 ore) ai clienti prima dell'appuntamento, secondo le regole impostate in Vendite → Calendari. Partono una volta al giorno alle 8:00." />
           <Kv label="Riepilogo task"      value="Ogni mattina alle 7:30 email a chi ha task in ritardo o in scadenza oggi." />
+          <Kv label="Verifica dominio email" value="Controlli automatici a 5 minuti, 3 ore e 24 ore dal collegamento (mentre il gestionale è in uso, più un controllo giornaliero alle 12:00). Se dopo 24 ore non è verificato, email agli Owner." />
           <Kv label="Cron schedule"       value="Le automazioni girano come Vercel Cron Jobs una volta al giorno (piano Hobby): fatture 9:00, promemoria appuntamenti 8:00, riepilogo task 7:30." />
         </div>
       </Section>

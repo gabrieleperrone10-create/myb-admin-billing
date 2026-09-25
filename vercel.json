@@ -5,6 +5,7 @@
     { "path": "/api/cron/overdue-alert",      "schedule": "0 8 * * 1" },
     { "path": "/api/cron/contract-expiring",  "schedule": "15 8 * * *" },
     { "path": "/api/cron/appointment-reminders", "schedule": "0 6 * * *" },
-    { "path": "/api/cron/task-digest",        "schedule": "30 5 * * *" }
+    { "path": "/api/cron/task-digest",        "schedule": "30 5 * * *" },
+    { "path": "/api/cron/email-domain-checks", "schedule": "0 10 * * *" }
   ]
 }

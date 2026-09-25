@@ -7,6 +7,8 @@ import { AuthGuard } from "@/components/layout/AuthGuard";
 import { requireCompany, listMyCompanies, companyDisplayName } from "@/lib/company";
 import { getUserAccess, canView, ALL_SECTIONS } from "@/lib/permissions";
 import { countMyDueTasks } from "@/lib/crm/tasks";
+import { after } from "next/server";
+import { autoCheckDue, runDomainAutoCheck } from "@/lib/email/domains";
 
 /**
  * requireCompany() e' memoizzata con cache(): questa chiamata e quella dentro
@@ -42,6 +44,13 @@ export default async function DashboardLayout({
     ctx.db.contact.aggregate({ _sum: { unreadCount: true } }).then(r => r._sum.unreadCount ?? 0).catch(() => 0),
   ]);
   const badges = { "/tasks": dueTasks, "/conversations": unread };
+
+  // Controllo automatico del dominio email (+5 min, +3 h, +24 h dal
+  // collegamento): i cron su Hobby girano una volta al giorno, quindi lo si
+  // esegue anche qui, in background dopo la risposta, quando e' scaduto.
+  if (autoCheckDue(ctx.company)) {
+    after(() => runDomainAutoCheck(ctx.companyId).catch(e => console.error("[email-domain] auto-check:", e)));
+  }
 
   return (
     <AuthGuard>

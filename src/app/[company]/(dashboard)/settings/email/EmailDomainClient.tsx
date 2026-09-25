@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Copy, Check, RefreshCw, Globe, Mail, Unplug } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -22,6 +22,8 @@ type Props = {
   currentFromName: string;
   currentLocal: string;
   repliesTo: string | null;
+  nextAutoCheckAt: string | null;
+  ownersNotifiedAt: string | null;
 };
 
 const STATUS: Record<string, { label: string; color: string }> = {
@@ -85,6 +87,15 @@ export default function EmailDomainClient(p: Props) {
 
   const sendingOk = p.sendingStatus === "verified";
   const receivingOk = p.inboundStatus === "verified";
+  const pendingVerification = !!p.domain && (!sendingOk || (!!p.inboundDomain && !receivingOk));
+
+  // Finche' il dominio e' in verifica la pagina si aggiorna da sola: il layout
+  // esegue in background i controlli automatici scaduti (+5 min, +3 h, +24 h).
+  useEffect(() => {
+    if (!pendingVerification) return;
+    const id = setInterval(() => { if (document.visibilityState === "visible") router.refresh(); }, 60_000);
+    return () => clearInterval(id);
+  }, [pendingVerification, router]);
 
   return (
     <div className="space-y-5">
@@ -203,6 +214,13 @@ export default function EmailDomainClient(p: Props) {
               <p className="text-[13px]" style={{ color: "var(--fg-3)" }}>Record non ancora disponibili: premi Verifica.</p>
             )}
 
+            {pendingVerification && (p.nextAutoCheckAt || p.ownersNotifiedAt) && (
+              <p className="text-[12px]" style={{ color: "var(--fg-3)" }}>
+                {p.nextAutoCheckAt
+                  ? `Controllo automatico: ${new Date(p.nextAutoCheckAt).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })} (poi a 3 ore e 24 ore dal collegamento; se non verificato gli Owner ricevono un'email).`
+                  : `Controlli automatici terminati: gli Owner sono stati avvisati via email il ${new Date(p.ownersNotifiedAt!).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}. Puoi sempre premere Verifica.`}
+              </p>
+            )}
             {(p.lastCheckedAt || p.lastError) && (
               <p className="text-[12px]" style={{ color: p.lastError ? "#b91c1c" : "var(--fg-3)" }}>
                 {p.lastError ? `Ultimo controllo con errore: ${p.lastError}` : `Ultimo controllo: ${new Date(p.lastCheckedAt!).toLocaleString("it-IT")}`}
