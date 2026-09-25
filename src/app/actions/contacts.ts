@@ -41,6 +41,8 @@ export const lookupContactByIdentity = companyAction(async (ctx, input: { email?
 
 // ─── Nuovo contatto ─────────────────────────────────────────────────────────
 
+const MAX_ASSIGNEES = 20;
+
 const newContactSchema = z.object({
   firstName: z.string().trim().max(120).optional(),
   lastName: z.string().trim().max(120).optional(),
@@ -51,6 +53,7 @@ const newContactSchema = z.object({
   jobTitle: z.string().trim().max(200).optional(),
   ownerUserId: z.string().trim().optional(),
   tagIds: z.array(z.string()).default([]),
+  assigneeUserIds: z.array(z.string()).max(MAX_ASSIGNEES).default([]),
   customFields: z.record(z.string(), z.unknown()).default({}),
 });
 
@@ -80,6 +83,17 @@ export const createContact = companyAction(async (ctx, rawInput: CreateContactIn
   if (ownerUserId) {
     const isMember = await ctx.db.companyMember.findFirst({ where: { clerkUserId: ownerUserId, companyId: ctx.companyId } });
     if (!isMember) return { ok: false as const, error: "Responsabile non valido.", fieldErrors: {} };
+  }
+
+  const assigneeUserIds = Array.from(new Set(input.assigneeUserIds.map(id => id.trim()).filter(Boolean)));
+  if (assigneeUserIds.length) {
+    const validMembers = await ctx.db.companyMember.findMany({
+      where: { companyId: ctx.companyId, clerkUserId: { in: assigneeUserIds } },
+      select: { clerkUserId: true },
+    });
+    if (validMembers.length !== assigneeUserIds.length) {
+      return { ok: false as const, error: "Uno o più assegnatari non sono validi.", fieldErrors: {} };
+    }
   }
 
   let contact: Contact;
@@ -114,6 +128,16 @@ export const createContact = companyAction(async (ctx, rawInput: CreateContactIn
         contactId: contact.id, type: "TAG_ADDED", data: { tagId, name: tag.name }, actorUserId: ctx.userId,
       });
     }
+  }
+
+  if (assigneeUserIds.length) {
+    await ctx.db.contactAssignee.createMany({
+      data: assigneeUserIds.map(userId => ({ contactId: contact.id, userId, companyId: ctx.companyId })),
+      skipDuplicates: true,
+    });
+    await logActivity(ctx.db, ctx.companyId, {
+      contactId: contact.id, type: "CONTACT_UPDATED", data: { fields: ["assignees"] }, actorUserId: ctx.userId,
+    });
   }
 
   revalidateContacts(ctx.slug);
@@ -175,6 +199,47 @@ export const bulkAssignOwner = companyAction(async (ctx, contactIdsRaw: string[]
   }
   revalidateContacts(ctx.slug);
   return { ok: true as const, count: validIds.length };
+});
+
+/**
+ * Aggiunge un assegnatario ai contatti indicati, in aggiunta al responsabile.
+ * Idempotente: skipDuplicates (ContactAssignee ha @@unique([contactId, userId])).
+ * ContactAssignee non e' un TENANT_MODEL (vedi src/lib/db.ts): companyId va
+ * passato a mano, come per setContactAssignees in contactDetail.ts.
+ */
+export const bulkAddAssignee = companyAction(async (ctx, contactIdsRaw: string[], userId: string) => {
+  const contactIds = idsSchema.parse(contactIdsRaw);
+  const isMember = await ctx.db.companyMember.findFirst({ where: { clerkUserId: userId, companyId: ctx.companyId } });
+  if (!isMember) return { ok: false as const, error: "Utente non valido." };
+  const validIds = await verifyContactIds(ctx.db, contactIds);
+
+  if (validIds.length) {
+    await ctx.db.contactAssignee.createMany({
+      data: validIds.map(contactId => ({ contactId, userId, companyId: ctx.companyId })),
+      skipDuplicates: true,
+    });
+    for (const contactId of validIds) {
+      await logActivity(ctx.db, ctx.companyId, { contactId, type: "CONTACT_UPDATED", data: { fields: ["assignees"] }, actorUserId: ctx.userId });
+    }
+  }
+  revalidateContacts(ctx.slug);
+  return { ok: true as const, count: validIds.length };
+});
+
+export const bulkRemoveAssignee = companyAction(async (ctx, contactIdsRaw: string[], userId: string) => {
+  const contactIds = idsSchema.parse(contactIdsRaw);
+  const validIds = await verifyContactIds(ctx.db, contactIds);
+
+  let removedCount = 0;
+  for (const contactId of validIds) {
+    const removed = await ctx.db.contactAssignee.deleteMany({ where: { contactId, userId, companyId: ctx.companyId } });
+    if (removed.count > 0) {
+      removedCount++;
+      await logActivity(ctx.db, ctx.companyId, { contactId, type: "CONTACT_UPDATED", data: { fields: ["assignees"] }, actorUserId: ctx.userId });
+    }
+  }
+  revalidateContacts(ctx.slug);
+  return { ok: true as const, count: removedCount };
 });
 
 export const bulkSetLifecycle = companyAction(async (ctx, contactIdsRaw: string[], lifecycle: ContactLifecycle) => {
@@ -264,6 +329,7 @@ const importBatchSchema = z.object({
   mapping: z.record(z.string(), z.string()), // header csv -> "std:<key>" | "cf:<key>" | "skip"
   defaultTagIds: z.array(z.string()).default([]),
   defaultLifecycle: z.enum(LIFECYCLES).default("LEAD"),
+  defaultAssigneeUserIds: z.array(z.string()).max(MAX_ASSIGNEES).default([]),
 });
 
 export type ImportRowResult = { row: number; status: "created" | "updated" | "skipped"; reason?: string };
@@ -277,11 +343,21 @@ export type ImportRowResult = { row: number; status: "created" | "updated" | "sk
 export const importContactsBatch = companyAction(async (ctx, rawInput: z.input<typeof importBatchSchema>) => {
   const parsed = importBatchSchema.safeParse(rawInput);
   if (!parsed.success) return { ok: false as const, error: "Lotto non valido.", results: [] as ImportRowResult[] };
-  const { rows, mapping, defaultTagIds, defaultLifecycle } = parsed.data;
+  const { rows, mapping, defaultTagIds, defaultLifecycle, defaultAssigneeUserIds } = parsed.data;
 
   const defs = await ctx.db.customFieldDef.findMany({ where: { entity: "CONTACT" } });
   const tagIds = defaultTagIds.length
     ? (await ctx.db.crmTag.findMany({ where: { id: { in: defaultTagIds } }, select: { id: true, name: true } }))
+    : [];
+
+  // Verifica una sola volta per lotto: chi non e' (piu') membro viene scartato
+  // in silenzio invece di far fallire l'intero import (i lotti successivi
+  // dello stesso wizard client condividono la stessa selezione, vedi ImportWizard).
+  const assigneeUserIds = defaultAssigneeUserIds.length
+    ? (await ctx.db.companyMember.findMany({
+        where: { companyId: ctx.companyId, clerkUserId: { in: defaultAssigneeUserIds } },
+        select: { clerkUserId: true },
+      })).map(m => m.clerkUserId)
     : [];
 
   const results: ImportRowResult[] = [];
@@ -335,6 +411,14 @@ export const importContactsBatch = companyAction(async (ctx, rawInput: z.input<t
           await ctx.db.contactTag.create({ data: { companyId: ctx.companyId, contactId: contact.id, tagId: tag.id } });
           await logActivity(ctx.db, ctx.companyId, { contactId: contact.id, type: "TAG_ADDED", data: { tagId: tag.id, name: tag.name }, actorUserId: ctx.userId });
         }
+      }
+
+      if (assigneeUserIds.length) {
+        await ctx.db.contactAssignee.createMany({
+          data: assigneeUserIds.map(userId => ({ contactId: contact.id, userId, companyId: ctx.companyId })),
+          skipDuplicates: true,
+        });
+        await logActivity(ctx.db, ctx.companyId, { contactId: contact.id, type: "CONTACT_UPDATED", data: { fields: ["assignees"] }, actorUserId: ctx.userId });
       }
 
       results.push({ row: i, status: created ? "created" : "updated" });

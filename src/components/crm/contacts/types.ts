@@ -13,6 +13,7 @@ export type ContactRow = {
   lifecycle: ContactLifecycle;
   source: string | null;
   ownerUserId: string | null;
+  assigneeUserIds: string[];
   lastActivityAt: Date | null;
   createdAt: Date;
   customFields: CustomFieldValues;
@@ -57,6 +58,7 @@ export const STANDARD_COLUMN_LABELS: Record<StandardColumn, string> = {
   jobTitle: "Ruolo",
   tags: "Etichette",
   owner: "Responsabile",
+  assignees: "Assegnati",
   source: "Fonte",
   lastActivityAt: "Ultima attività",
   createdAt: "Creato il",

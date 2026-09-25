@@ -27,6 +27,7 @@ export default function ContactsToolbar({
   customFieldDefs,
   savedViews,
   sourceOptions,
+  currentUserId,
 }: {
   slug: string;
   tab: ContactTab;
@@ -40,9 +41,11 @@ export default function ContactsToolbar({
   customFieldDefs: CustomFieldDefLite[];
   savedViews: SavedViewLite[];
   sourceOptions: string[];
+  currentUserId: string;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const assignedToMe = (filters.assigneeUserIds ?? []).length === 1 && filters.assigneeUserIds?.[0] === currentUserId;
 
   return (
     <div className="space-y-3">
@@ -96,6 +99,17 @@ export default function ContactsToolbar({
 
       <div className="flex items-center gap-2 flex-wrap">
         <SearchInput placeholder="Cerca per nome, email, telefono, azienda…" className="w-full sm:w-72" />
+        <Link
+          href={buildHref(pathname, searchParams, { assignees: assignedToMe ? null : currentUserId })}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[var(--r-md)] text-[13px]"
+          style={{
+            border: "1px solid var(--border)",
+            backgroundColor: assignedToMe ? "var(--info-soft)" : "var(--surface)",
+            color: assignedToMe ? "var(--info)" : "var(--fg)",
+          }}
+        >
+          Assegnati a me
+        </Link>
         <FiltersPopover filters={filters} tags={tags} members={members} customFieldDefs={customFieldDefs} sourceOptions={sourceOptions} />
         <ColumnPicker columns={columns} customFieldDefs={customFieldDefs} />
         <SavedViewsMenu slug={slug} views={savedViews} filters={filters} columns={columns} sort={sort} dir={dir} />

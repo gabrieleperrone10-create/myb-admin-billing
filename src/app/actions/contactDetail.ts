@@ -161,6 +161,48 @@ export const updateContactOwner = companyAction(async (
   return { ok: true };
 });
 
+// ─── Assegnatari (oltre al responsabile) ────────────────────────────────────
+
+const MAX_ASSIGNEES = 20;
+
+/**
+ * Sostituisce l'insieme completo degli assegnatari del contatto.
+ *
+ * ContactAssignee non e' un TENANT_MODEL (vedi src/lib/db.ts): le scritture
+ * dirette qui sotto NON ricevono companyId in automatico, va passato a mano
+ * in ogni create/deleteMany, com'e' gia' per CompanyMember.
+ */
+export const setContactAssignees = companyAction(async (
+  ctx, contactId: string, userIdsRaw: string[],
+): Promise<ActionResult> => {
+  const userIds = Array.from(new Set(userIdsRaw.map(id => id.trim()).filter(Boolean)));
+  if (userIds.length > MAX_ASSIGNEES) return { ok: false, error: `Massimo ${MAX_ASSIGNEES} assegnatari` };
+
+  const contact = await ctx.db.contact.findUnique({ where: { id: contactId }, select: { id: true } });
+  if (!contact) return { ok: false, error: "Contatto non trovato" };
+
+  if (userIds.length) {
+    const validMembers = await ctx.db.companyMember.findMany({
+      where: { companyId: ctx.companyId, clerkUserId: { in: userIds } },
+      select: { clerkUserId: true },
+    });
+    if (validMembers.length !== userIds.length) return { ok: false, error: "Uno o più utenti non sono membri dell'azienda" };
+  }
+
+  await ctx.db.contactAssignee.deleteMany({ where: { contactId, companyId: ctx.companyId } });
+  if (userIds.length) {
+    await ctx.db.contactAssignee.createMany({
+      data: userIds.map(userId => ({ contactId, userId, companyId: ctx.companyId })),
+      skipDuplicates: true,
+    });
+  }
+  await logActivity(ctx.db, ctx.companyId, {
+    contactId, type: "CONTACT_UPDATED", data: { fields: ["assignees"] }, actorUserId: ctx.userId,
+  });
+  revalidatePath(path(ctx.slug, contactId));
+  return { ok: true };
+});
+
 // ─── Opt-out ─────────────────────────────────────────────────────────────────
 
 export const updateContactOptOut = companyAction(async (

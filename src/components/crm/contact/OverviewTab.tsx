@@ -9,6 +9,7 @@ import { InlineTextField } from "./fields/InlineTextField";
 import { CustomFieldEditor } from "./fields/CustomFieldEditor";
 import { TagsEditor } from "./fields/TagsEditor";
 import { OwnerSelect } from "./fields/OwnerSelect";
+import { AssigneesEditor } from "./fields/AssigneesEditor";
 import { OptOutToggle } from "./fields/OptOutToggle";
 import type { ContactTabProps } from "./types";
 
@@ -46,7 +47,7 @@ export default async function OverviewTab({ slug, contactId }: ContactTabProps) 
   const [contact, defs, allTags, members] = await Promise.all([
     db.contact.findUnique({
       where: { id: contactId },
-      include: { tags: { include: { tag: true } }, client: true },
+      include: { tags: { include: { tag: true } }, client: true, assignees: true },
     }),
     db.customFieldDef.findMany({ where: { entity: "CONTACT" }, orderBy: { order: "asc" } }),
     db.crmTag.findMany({ orderBy: { name: "asc" } }),
@@ -59,6 +60,9 @@ export default async function OverviewTab({ slug, contactId }: ContactTabProps) 
   const attribution = (contact.attribution ?? null) as Attribution | null;
   const currentTags = contact.tags.map(t => t.tag);
   const memberOptions = members.map(m => ({ userId: m.userId, name: m.name }));
+  const assigneeMembers = contact.assignees
+    .map(a => memberOptions.find(m => m.userId === a.userId))
+    .filter((m): m is { userId: string; name: string } => !!m);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -147,6 +151,10 @@ export default async function OverviewTab({ slug, contactId }: ContactTabProps) 
       <div className="space-y-4">
         <Card title="Responsabile">
           <OwnerSelect slug={slug} contactId={contactId} ownerUserId={contact.ownerUserId} members={memberOptions} />
+        </Card>
+
+        <Card title="Assegnato a">
+          <AssigneesEditor slug={slug} contactId={contactId} assignees={assigneeMembers} members={memberOptions} />
         </Card>
 
         <Card title="Etichette">

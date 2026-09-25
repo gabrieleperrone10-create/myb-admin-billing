@@ -79,7 +79,7 @@ export default async function ContactsPage({
     orderBy,
     skip: (query.page - 1) * query.pageSize,
     take: query.pageSize,
-    include: { tags: { include: { tag: true } } },
+    include: { tags: { include: { tag: true } }, assignees: true },
   });
 
   const rows: ContactRow[] = contactsRaw.map(c => ({
@@ -93,6 +93,7 @@ export default async function ContactsPage({
     lifecycle: c.lifecycle,
     source: c.source,
     ownerUserId: c.ownerUserId,
+    assigneeUserIds: c.assignees.map(a => a.userId),
     lastActivityAt: c.lastActivityAt,
     createdAt: c.createdAt,
     customFields: (c.customFields ?? {}) as CustomFieldValues,
@@ -120,6 +121,7 @@ export default async function ContactsPage({
           customFieldDefs={customFieldDefs}
           savedViews={savedViews}
           sourceOptions={sourceOptions}
+          currentUserId={userId}
         />
         <ContactsTable
           slug={slug}

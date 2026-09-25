@@ -151,6 +151,8 @@ export type ContactFilters = {
   lifecycle?: ("LEAD" | "CUSTOMER" | "ARCHIVED")[];
   tagIds?: string[];
   ownerUserIds?: string[];
+  /** Responsabile O assegnatario (Contact.ownerUserId oppure ContactAssignee) */
+  assigneeUserIds?: string[];
   source?: string[];
   createdFrom?: string;
   createdTo?: string;

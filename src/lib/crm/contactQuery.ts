@@ -42,7 +42,7 @@ export const DEFAULT_PAGE_SIZE = 25;
 
 /** Colonne disponibili nella tabella (oltre a quelle standard, una per ogni CustomFieldDef via "cf:<key>"). */
 export const STANDARD_COLUMNS = [
-  "lifecycle", "email", "phone", "companyName", "jobTitle", "tags", "owner", "source", "lastActivityAt", "createdAt",
+  "lifecycle", "email", "phone", "companyName", "jobTitle", "tags", "owner", "assignees", "source", "lastActivityAt", "createdAt",
 ] as const;
 export type StandardColumn = (typeof STANDARD_COLUMNS)[number];
 
@@ -95,6 +95,7 @@ export function parseContactSearchParams(
     q: first(sp.q) || undefined,
     tagIds: csv(sp.tags),
     ownerUserIds: csv(sp.owners),
+    assigneeUserIds: csv(sp.assignees),
     source: csv(sp.source),
     createdFrom: first(sp.createdFrom) || undefined,
     createdTo: first(sp.createdTo) || undefined,
@@ -128,6 +129,17 @@ function baseWhere(filters: ContactFilters, customFieldDefs: Pick<CustomFieldDef
 
   if (filters.ownerUserIds?.length) {
     AND.push({ ownerUserId: { in: filters.ownerUserIds } });
+  }
+
+  if (filters.assigneeUserIds?.length) {
+    // Responsabile O assegnatario: stessa definizione di "mio" usata dalla
+    // visibilita' "Solo assegnati" (lib/visibility.ts contactVisible).
+    AND.push({
+      OR: [
+        { ownerUserId: { in: filters.assigneeUserIds } },
+        { assignees: { some: { userId: { in: filters.assigneeUserIds } } } },
+      ],
+    });
   }
 
   if (filters.source?.length) {
@@ -207,6 +219,7 @@ export function queryToSearchParams(q: Omit<ParsedContactQuery, "view">): URLSea
   if (q.filters.q) params.set("q", q.filters.q);
   if (q.filters.tagIds?.length) params.set("tags", q.filters.tagIds.join(","));
   if (q.filters.ownerUserIds?.length) params.set("owners", q.filters.ownerUserIds.join(","));
+  if (q.filters.assigneeUserIds?.length) params.set("assignees", q.filters.assigneeUserIds.join(","));
   if (q.filters.source?.length) params.set("source", q.filters.source.join(","));
   if (q.filters.createdFrom) params.set("createdFrom", q.filters.createdFrom);
   if (q.filters.createdTo) params.set("createdTo", q.filters.createdTo);
